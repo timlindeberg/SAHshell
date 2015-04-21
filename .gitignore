@@ -31,4 +31,8 @@
 # Debug files
 *.dSYM/
 
+# CLion Files
+.idea/
+CMakeLists.txt
+
 bin

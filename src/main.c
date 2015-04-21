@@ -5,26 +5,34 @@
 
 #define MAX_COMMAND_ENTRY 1024
 #define MAX_PATH_LENGTH 1024
+#define MAX_USER_NAME_LENGTH 128
 #define MAX_ARGUMENTS 32
 
 #define TRUE  1
 #define FALSE 0
+
 
 void parse_commands(char *cmd_entry, char *cmd_args[]);
 void do_commands(char *cmd_args[]);
 void print_args(char *cmd_args[]);
 void print_prompt();
 void set_current_dir();
+char* create_dir_string(char* str, int index);
+int starts_with_homedir(char* s);
 
 void sah_cd(char *cmd_args[]);
 
 char* HOME_DIR;
 char PREVIOUS_DIR[MAX_PATH_LENGTH];
 char CURRENT_DIR[MAX_PATH_LENGTH];
+char USER_NAME[MAX_USER_NAME_LENGTH];
+
+int running;
 
 int main(int argc, char *argv[]){
     char cmd_entry[MAX_COMMAND_ENTRY];
 
+    getlogin_r(USER_NAME, MAX_USER_NAME_LENGTH);
     HOME_DIR = getenv("HOME");
     if (HOME_DIR != NULL) {
         printf("HOME_DIR: %s\n", HOME_DIR);
@@ -35,8 +43,8 @@ int main(int argc, char *argv[]){
     set_current_dir();
 
     strcpy(PREVIOUS_DIR, CURRENT_DIR);
-
-    while (TRUE) {
+    running = TRUE;
+    while (running) {
         char *cmd_args[MAX_ARGUMENTS];
 
         set_current_dir();
@@ -49,7 +57,7 @@ int main(int argc, char *argv[]){
             return 0;
         }
 
-        print_args(cmd_args);
+        //print_args(cmd_args);
 
         if (cmd_args[0] != NULL) {
             do_commands(cmd_args);
@@ -78,11 +86,14 @@ void parse_commands(char *cmd_entry, char *cmd_args[]) {
 }
 
 void do_commands(char *cmd_args[]) {
-    if (strcmp("exit", cmd_args[0]) == 0) {
+    if (strcmp("exit", cmd_args[0]) == 0 || strcmp("quit", cmd_args[0]) == 0 ) {
         printf("%s\n", "Exit");
-        exit(0);
+        running = FALSE;
     } else if (strcmp("cd", cmd_args[0]) == 0) {
         sah_cd(++cmd_args);
+    } else if (strcmp("cd..", cmd_args[0]) == 0) {
+        char* s = "..";
+        sah_cd(&s);
     } else if (strcmp("checkEnv", cmd_args[0]) == 0) {
 
     } else {
@@ -112,7 +123,27 @@ void sah_cd(char *cmd_args[]) {
 }
 
 void print_prompt() {
-    printf("%s $ ", CURRENT_DIR);
+    int index = starts_with_homedir(CURRENT_DIR);
+    char tmp[MAX_PATH_LENGTH];
+    char* dir = index == -1 ? CURRENT_DIR : create_dir_string(tmp, index);
+    printf("%s: %s $ ", USER_NAME, dir);
+}
+
+char* create_dir_string(char* str, int index){
+    strcpy(str, "~");
+    strcat(str, CURRENT_DIR + index);
+    return str;
+}
+
+int starts_with_homedir(char* s) {
+    int i = 0;
+    while(s[i] == HOME_DIR[i]){
+        i++;
+        if(HOME_DIR[i] == NULL){
+            return i;
+        }
+    }
+    return -1;
 }
 
 void print_args(char *cmd_args[]) {

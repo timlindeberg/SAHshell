@@ -3,10 +3,12 @@
 #include <stdlib.h>
 #include <string.h>
 #include <sys/wait.h>
+#include <time.h>
 
 #define MAX_COMMAND_ENTRY 1024
 #define MAX_PATH_LENGTH 1024
 #define MAX_ARGUMENTS 32
+#define MAX_OUTPUT 65536
 
 #define TRUE  1
 #define FALSE 0
@@ -16,6 +18,7 @@ void split(const char *cmd_entry, char *cmd_args[], char *delim);
 void do_commands(char *cmd_args[]);
 void print_args(char *cmd_args[]);
 void print_prompt();
+void print_exec_time(char* process, double time_spent);
 void set_current_dir();
 char* create_dir_string(char* str, int index);
 int starts_with_homedir(char* s);
@@ -33,11 +36,10 @@ char* HOME_DIR;
 char PREVIOUS_DIR[MAX_PATH_LENGTH];
 char CURRENT_DIR[MAX_PATH_LENGTH];
 
-int running;
+int RUNNING;
 
 int main(int argc, char *argv[], char* envp[]){
     char cmd_entry[MAX_COMMAND_ENTRY];
-    size_t envSize;
 
     HOME_DIR = getenv("HOME");
     if (HOME_DIR != NULL) {
@@ -46,25 +48,17 @@ int main(int argc, char *argv[], char* envp[]){
         printf("%s\n", "Could not set HOME_DIR.");
     }
 
-    envSize = size((void**)envp);
-    qsort(envp, envSize, sizeof(char*), str_cmp);
-
-    /*
-    for(int i = 0; i < envSize; i++)
-        printf("%s\n", envp[i]);
-    */
-
     set_current_dir();
 
     strcpy(PREVIOUS_DIR, CURRENT_DIR);
-    running = TRUE;
-    while (running) {
+    RUNNING = TRUE;
+    while (RUNNING) {
         char *cmd_args[MAX_ARGUMENTS];
-        char delim[4] = " \n\t";
         set_current_dir();
         print_prompt();
 
         if (fgets(cmd_entry, MAX_COMMAND_ENTRY, stdin) != NULL) {
+            char delim[4] = " \n\t";
             split(cmd_entry, cmd_args, delim);
         } else {
             printf("%s\n", "Could not fgets.");
@@ -79,22 +73,6 @@ int main(int argc, char *argv[], char* envp[]){
     }
 
     return 0;
-}
-
-int str_cmp(const void* a, const void* b){
-    const char** strA = (const char**) a;
-    const char** strB = (const char**) b;
-    return strcmp(*strA, *strB);
-}
-
-int size(void** arr) {
-    int i = 0;
-    void** a = arr;
-    while(*a != 0) {
-        a++;
-        i++;
-    }
-    return i;
 }
 
 void set_current_dir() {
@@ -140,7 +118,7 @@ void do_commands(char *cmd_args[]) {
 */
 
 void sah_exit(){
-    running = FALSE;
+    RUNNING = FALSE;
 }
 
 void sah_cd(char *cmd_args[]) {
@@ -183,33 +161,46 @@ void sah_start_process(char* cmd_args[]){
     }
 
     pid = fork();
-    if(pid == -1) {
+    if (pid == -1) {
         /* Error */
         printf("Could not fork process!\n");
-    } else if(pid == 0) {
+    } else if (pid == 0) {
         /* Child process */
         dup2(link[1], STDOUT_FILENO);
+
+        /* Child process closes up input side of pipe */
         close(link[0]);
-        close(link[1]);
-        if(execv(process, ++cmd_args) == -1){
+
+        strcpy(cmd_args[0], process);
+        if (execv(cmd_args[0], cmd_args) == -1){
             printf("Could not execute program %s\n", process);
         }
     } else {
-        char output[512];
+        clock_t begin, end;
+        double time_spent;
+        char output[MAX_OUTPUT];
         int nbytes = read(link[0], output, sizeof(output));
+        begin = clock();
+
+        /* Parent process close output side of pipe */
         close(link[1]);
-        printf("Output: (%.*s)\n", nbytes, output);
+
+        printf("%.*s", nbytes, output);
         wait(NULL);
+
+        end = clock();
+        time_spent = (double) (end - begin) / CLOCKS_PER_SEC;
+        print_exec_time(cmd_args[0], time_spent);
     }
 
 }
 
 char* get_process(char* process, char* cmd){
     const char* path_env;
-    char*       paths[MAX_ARGUMENTS];
 
     path_env = getenv("PATH");
     if(path_env != NULL){
+        char* paths[MAX_ARGUMENTS];
         int i = 0;
         split(path_env, paths, ":");
         while(paths[i] != NULL) {
@@ -263,4 +254,8 @@ void print_args(char *cmd_args[]) {
         i++;
     }
     printf("%s\n", "---");
+}
+
+void print_exec_time(char* process, double time_spent) {
+    printf("'%s' total execution time: %f s\n", process, time_spent);
 }

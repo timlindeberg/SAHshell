@@ -1,11 +1,11 @@
+#include <unistd.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <unistd.h>
+#include <sys/wait.h>
 
 #define MAX_COMMAND_ENTRY 1024
 #define MAX_PATH_LENGTH 1024
-#define MAX_USER_NAME_LENGTH 128
 #define MAX_ARGUMENTS 32
 
 #define TRUE  1
@@ -32,18 +32,12 @@ char* get_process(char* process, char* cmd);
 char* HOME_DIR;
 char PREVIOUS_DIR[MAX_PATH_LENGTH];
 char CURRENT_DIR[MAX_PATH_LENGTH];
-char USER_NAME[MAX_USER_NAME_LENGTH];
 
 int running;
 
 int main(int argc, char *argv[], char* envp[]){
     char cmd_entry[MAX_COMMAND_ENTRY];
     size_t envSize;
-
-    getlogin_r(USER_NAME, MAX_USER_NAME_LENGTH);
-    if(USER_NAME == NULL){
-        printf("%s\n", "Could not get user name.");
-    }
 
     HOME_DIR = getenv("HOME");
     if (HOME_DIR != NULL) {
@@ -54,9 +48,11 @@ int main(int argc, char *argv[], char* envp[]){
 
     envSize = size((void**)envp);
     qsort(envp, envSize, sizeof(char*), str_cmp);
-    //for(int i = 0; i < envSize; i++)
-    //    printf("%s\n", envp[i]);
 
+    /*
+    for(int i = 0; i < envSize; i++)
+        printf("%s\n", envp[i]);
+    */
 
     set_current_dir();
 
@@ -75,7 +71,7 @@ int main(int argc, char *argv[], char* envp[]){
             return 0;
         }
 
-        //print_args(cmd_args);
+        /* print_args(cmd_args); */
 
         if (cmd_args[0] != NULL) {
             do_commands(cmd_args);
@@ -93,7 +89,11 @@ int str_cmp(const void* a, const void* b){
 
 int size(void** arr) {
     int i = 0;
-    for (void** a = arr; *a != 0; a++) i++;
+    void** a = arr;
+    while(*a != 0) {
+        a++;
+        i++;
+    }
     return i;
 }
 
@@ -105,7 +105,7 @@ void set_current_dir() {
 }
 
 void split(const char *cmd_entry, char *cmd_args[], char *delim) {
-    char cpy[MAX_PATH_LENGTH]; // TODO constant size
+    char cpy[MAX_PATH_LENGTH]; /* TODO constant size */
     char *token;
     strcpy(cpy, cmd_entry);
     token = strtok(cpy, delim);
@@ -127,7 +127,7 @@ void do_commands(char *cmd_args[]) {
         char* s = "..";
         sah_cd(&s);
     } else if (strcmp("checkEnv", cmd_args[0]) == 0) {
-        // TODO
+        /* TODO */
     } else {
         sah_start_process(cmd_args);
     }
@@ -172,7 +172,7 @@ void sah_start_process(char* cmd_args[]){
 
     cmd = cmd_args[0];
     get_process(process, cmd);
-    if(process[0] == NULL){
+    if(process[0] == '\0'){
         printf("Unknown command: %s\n", cmd);
         return;
     }
@@ -184,10 +184,10 @@ void sah_start_process(char* cmd_args[]){
 
     pid = fork();
     if(pid == -1) {
-        // Error
+        /* Error */
         printf("Could not fork process!\n");
     } else if(pid == 0) {
-        // Child process
+        /* Child process */
         dup2(link[1], STDOUT_FILENO);
         close(link[0]);
         close(link[1]);
@@ -196,8 +196,8 @@ void sah_start_process(char* cmd_args[]){
         }
     } else {
         char output[512];
-        close(link[1]);
         int nbytes = read(link[0], output, sizeof(output));
+        close(link[1]);
         printf("Output: (%.*s)\n", nbytes, output);
         wait(NULL);
     }
@@ -210,17 +210,19 @@ char* get_process(char* process, char* cmd){
 
     path_env = getenv("PATH");
     if(path_env != NULL){
+        int i = 0;
         split(path_env, paths, ":");
-        for(int i = 0; paths[i] != NULL; i++){
+        while(paths[i] != NULL) {
             strcpy(process, paths[i]);
             strcat(process, "/");
             strcat(process, cmd);
             if(file_exists(process)){
                 return process;
             }
+            i++;
         }
     }
-    *process = NULL;
+    *process = '\0';
     return process;
 }
 
@@ -232,7 +234,7 @@ void print_prompt() {
     int index = starts_with_homedir(CURRENT_DIR);
     char tmp[MAX_PATH_LENGTH];
     char* dir = index == -1 ? CURRENT_DIR : create_dir_string(tmp, index);
-    printf("%s: %s $ ", USER_NAME, dir);
+    printf("%s $ ", dir);
 }
 
 char* create_dir_string(char* str, int index){

@@ -100,12 +100,22 @@ void split(char* string, char** string_array, char* delim) {
 }
 
 void do_commands(char** cmd_args) {
-    char cp[MAX_PATH_LENGTH];
-    char* cmd[MAX_ARGUMENTS];
+    char    cp[MAX_PATH_LENGTH];
+    char*   cmd[MAX_ARGUMENTS];
+    int     count = 0;
+
     strcpy(cp, cmd_args[0]);
     split(cp, cmd, " ");
 
-    if (strcmp("exit", cmd[0]) == 0 || strcmp("quit", cmd[0]) == 0) {
+    while(cmd[count] != NULL) count++;
+
+    if(strcmp("&", cmd[count - 1]) == 0){
+        cmd[count - 1] = NULL;
+        sah_start_background_process(cmd);
+        return;
+    }
+
+    if (strcmp("exit", cmd[0]) == 0 || strcmp("quit", cmd[0]) == 0 ) {
         printf("%s\n", "Exit");
         sah_exit();
     } else if (strcmp("cd", cmd[0]) == 0) {
@@ -150,6 +160,26 @@ void sah_check_env(char** cmd_args, char** cmd) {
     cmds[i++] = pager;
     cmds[i] = NULL;
     sah_start_processes(cmds);
+}
+
+void sah_start_background_process(char** command){
+    char    process_path[MAX_PATH_LENGTH];
+    char*   process;
+    int     pid;
+    process = command[0];
+
+    if (!get_process(process_path, process)) {
+        printf("Unknown command: %s\n", process);
+        return;
+    }
+
+    pid = fork();
+    if (pid == 0) { /* Child process */
+        execute(process_path, command);
+    } else if (pid == -1) {  /* Error */
+        printf("Could not fork process!\n");
+        return;
+    }
 }
 
 void sah_start_processes(char** commands) {

@@ -1,4 +1,4 @@
-FLAGS = -pedantic -Wall -Werror -ansi -O4 -g
+FLAGS = -pedantic -Wall -ansi -O4 -g
 
 FILES = src/main.c
 

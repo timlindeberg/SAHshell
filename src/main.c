@@ -36,7 +36,6 @@ void do_pipeline_commands(char **cmd_args);
 void sah_cd(char **cmd_args);
 void sah_exit();
 void sah_start_process(char **cmd_args);
-void sah_start_piped_processes(char *cmd_args[MAX_ARGUMENTS][MAX_ARGUMENTS], int args);
 
 char* HOME_DIR;
 char PREVIOUS_DIR[MAX_PATH_LENGTH];
@@ -64,15 +63,18 @@ int main(int argc, char **argv, char **envp){
         print_prompt();
 
         if (fgets(cmd_entry, MAX_COMMAND_ENTRY, stdin) != NULL) {
+            char cp[MAX_PATH_LENGTH];
             strtok(cmd_entry, "\n"); /* Remove trailing newline */
             if(strstr(cmd_entry, "|") == NULL){
                 /* No pipe in command */
-                split(cmd_entry, cmd_args, " ");
+                strcpy(cp, cmd_entry);
+                split(cp, cmd_args, " ");
                 if(cmd_args[0] != NULL){
                     do_commands(cmd_args);
                 }
             }else{
-                split(cmd_entry, cmd_args, "|");
+                strcpy(cp, cmd_entry);
+                split(cp, cmd_args, "|");
                 do_pipeline_commands(cmd_args);
             }
         } else {
@@ -92,10 +94,8 @@ void set_current_dir() {
 }
 
 void split(const char *string, char **string_array, char *delim) {
-    char tmp[MAX_PATH_LENGTH]; /* TODO constant size */
     char *token;
-    strcpy(tmp, string);
-    token = strtok(tmp, delim);
+    token = strtok(string, delim);
     while (token != NULL) {
         *string_array = token;
         string_array++;
@@ -121,9 +121,69 @@ void do_commands(char **cmd_args) {
 }
 
 void do_pipeline_commands(char **commands) {
-    char *cmds[MAX_ARGUMENTS][MAX_ARGUMENTS];
+    int     i = 0;
+    int     nbytes;
+    char    output[MAX_OUTPUT];
+    int     count = 0;
 
-    sah_start_piped_processes(cmds, args);
+    while(commands[count] != NULL) count++;
+
+    if(fork() == 0){
+        while (commands[i] != NULL) {
+            char*   command[MAX_ARGUMENTS];
+            char    cp[MAX_PATH_LENGTH];
+            char    process_path[MAX_PATH_LENGTH];
+            int     pid;
+            char*   process;
+            int     stdout_fd[2];
+
+            if (pipe(stdout_fd) == -1) {
+                printf("Could not create pipe!\n");
+                return;
+            }
+
+
+            strcpy(cp, commands[i]);
+            split(cp, command, " ");
+            process = command[0];
+
+            get_process(process_path, process);
+
+            if (process_path[0] == '\0') {
+                printf("Unknown command: %s\n", process);
+                return;
+            }
+
+            if(i < count - 1){
+                pid = fork();
+                if (pid == 0) { /* Child process */
+                    /* Redirect fds */
+                    dup2(stdout_fd[WRITE], STDOUT_FILENO);
+                    close(stdout_fd[WRITE]);
+                    execute(process_path, command);
+                } else if (pid == -1) {  /* Error */
+                    printf("Could not fork process!\n");
+                    return;
+                }
+
+                dup2(stdout_fd[READ], STDIN_FILENO);
+                close(stdout_fd[WRITE]);
+            }else{
+                execute(process_path, command);
+            }
+            i++;
+        }
+    }
+
+    wait(NULL);
+}
+
+void execute(char* process_path, char** command){
+    command[0] = process_path;
+    if (execv(process_path, command) == -1) {
+        printf("Could not execute program %s\n", process_path);
+        exit(1);
+    }
 }
 
 /*
@@ -155,10 +215,6 @@ void sah_cd(char **cmd_args) {
     } else {
         strcpy(PREVIOUS_DIR, CURRENT_DIR);
     }
-}
-
-void sah_start_piped_processes(char *cmd_args[MAX_ARGUMENTS][MAX_ARGUMENTS], int args) {
-
 }
 
 void sah_start_process(char **cmd_args) {
@@ -196,14 +252,17 @@ void sah_start_process(char **cmd_args) {
     }
 }
 
-char* get_process(char* process, char* cmd){
+char* get_process(char* process, char* cmd) {
     const char* path_env;
 
     path_env = getenv("PATH");
     if (path_env != NULL){
-        char* paths[MAX_ARGUMENTS];
-        int i = 0;
-        split(path_env, paths, ":");
+        char*   paths[MAX_ARGUMENTS];
+        char    cp[MAX_PATH_LENGTH];
+        int     i = 0;
+
+        strcpy(cp, path_env);
+        split(cp, paths, ":");
         while (paths[i] != NULL) {
             strcpy(process, paths[i]);
             strcat(process, "/");

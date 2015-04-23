@@ -16,27 +16,29 @@
 #define READ  0
 #define WRITE  1
 
-void print_args(char **cmd_args);
+void print_args(char** cmd_args);
 void print_prompt();
-void print_exec_time(char* process, double time_spent);
+void print_exec_time(double time_spent);
+
 void set_current_dir();
-void split(const char *cmd_entry, char **cmd_args, char *delim);
+void split(char* cmd_entry, char** cmd_args, char* delim);
 
 int starts_with_homedir(char* s);
-int str_cmp(const void* a, const void* b);
-int file_exists(char const *path);
+int file_exists(char* path);
+int get_process(char* process, char* cmd);
 
 char* create_dir_string(char* str, int index);
-char* get_process(char* process, char* cmd);
+char* get_pager(char** pager);
 
-void do_commands(char **cmd_args);
-void do_pipeline_commands(char **cmd_args);
+void do_commands(char** cmd_args);
+void do_pipeline_commands(char** cmd_args);
 void execute(char* process_path, char** command);
 
 /* Commands */
-void sah_cd(char **cmd_args);
+void sah_check_env(char** cmd_args, char** cmd);
+void sah_cd(char** cmd_args);
 void sah_exit();
-void sah_start_process(char **cmd_args);
+void sah_start_processes(char** cmd_args);
 
 char* HOME_DIR;
 char PREVIOUS_DIR[MAX_PATH_LENGTH];
@@ -44,7 +46,7 @@ char CURRENT_DIR[MAX_PATH_LENGTH];
 
 int RUNNING;
 
-int main(int argc, char **argv, char **envp){
+int main(int argc, char** argv, char** envp){
     char cmd_entry[MAX_COMMAND_ENTRY];
 
     HOME_DIR = getenv("HOME");
@@ -66,18 +68,9 @@ int main(int argc, char **argv, char **envp){
         if (fgets(cmd_entry, MAX_COMMAND_ENTRY, stdin) != NULL) {
             char cp[MAX_PATH_LENGTH];
             strtok(cmd_entry, "\n"); /* Remove trailing newline */
-            if(strstr(cmd_entry, "|") == NULL){
-                /* No pipe in command */
-                strcpy(cp, cmd_entry);
-                split(cp, cmd_args, " ");
-                if(cmd_args[0] != NULL){
-                    do_commands(cmd_args);
-                }
-            }else{
-                strcpy(cp, cmd_entry);
-                split(cp, cmd_args, "|");
-                do_pipeline_commands(cmd_args);
-            }
+            strcpy(cp, cmd_entry);
+            split(cp, cmd_args, "|");
+            do_commands(cmd_args);
         } else {
             printf("%s\n", "Could not fgets.");
             return 0;
@@ -94,8 +87,8 @@ void set_current_dir() {
     }
 }
 
-void split(const char *string, char **string_array, char *delim) {
-    char *token;
+void split(char* string, char** string_array, char* delim) {
+    char* token;
     token = strtok(string, delim);
     while (token != NULL) {
         *string_array = token;
@@ -105,34 +98,72 @@ void split(const char *string, char **string_array, char *delim) {
     *string_array = NULL;
 }
 
-void do_commands(char **cmd_args) {
-    if (strcmp("exit", cmd_args[0]) == 0 || strcmp("quit", cmd_args[0]) == 0 ) {
+void do_commands(char** cmd_args) {
+    char cp[MAX_PATH_LENGTH];
+    char* cmd[MAX_ARGUMENTS];
+    strcpy(cp, cmd_args[0]);
+    split(cp, cmd, " ");
+
+    if (strcmp("exit", cmd[0]) == 0 || strcmp("quit", cmd[0]) == 0 ) {
         printf("%s\n", "Exit");
         sah_exit();
-    } else if (strcmp("cd", cmd_args[0]) == 0) {
-        sah_cd(++cmd_args);
-    } else if (strcmp("cd..", cmd_args[0]) == 0) {
+    } else if (strcmp("cd", cmd[0]) == 0) {
+        sah_cd(cmd + 1);
+    } else if (strcmp("cd..", cmd[0]) == 0) {
         char* s = "..";
         sah_cd(&s);
-    } else if (strcmp("checkEnv", cmd_args[0]) == 0) {
-        /* TODO */
+    } else if (strcmp("checkEnv", cmd[0]) == 0) {
+        sah_check_env(cmd_args, cmd);
     } else {
-        sah_start_process(cmd_args);
+        sah_start_processes(cmd_args);
     }
 }
 
-void do_pipeline_commands(char **commands) {
+char* get_pager(char** pager){
+    *pager = getenv("PAGER");
+    if (*pager == NULL){
+        char  cp[MAX_OUTPUT];
+        *pager = get_process(cp, "less") ? "less" :
+                 get_process(cp, "more") ? "more" :
+                 NULL;
+    }
+    return *pager;
+}
+
+void sah_check_env(char** cmd_args, char** cmd){
+    char*   cmds[MAX_ARGUMENTS];
+    char    grep[MAX_PATH_LENGTH];
+    char*   pager = NULL;
     int     i = 0;
+    cmds[i++] = "printenv";
+    if (cmd[1] != NULL){
+        strcpy(grep, "grep ");
+        strcat(grep, cmd_args[0] + sizeof("checkEnv"));
+        cmds[i++] = grep;
+    }
+    if (get_pager(&pager) == NULL){
+        printf("Could not find pagers more or less.");
+        return;
+    }
+    cmds[i++] = "sort";
+    cmds[i++] = pager;
+    cmds[i] = NULL;
+    sah_start_processes(cmds);
+}
+
+void sah_start_processes(char** commands) {
     int     count = 0;
+    double  time_spent;
+    clock_t begin = clock();
 
-    while(commands[count] != NULL) count++;
+    while (commands[count] != NULL) count++;
 
-    if(fork() == 0){
+    if (fork() == 0){
+        int i = 0;
         while (commands[i] != NULL) {
             char*   command[MAX_ARGUMENTS];
             char    cp[MAX_PATH_LENGTH];
             char    process_path[MAX_PATH_LENGTH];
-            int     pid;
             char*   process;
             int     stdout_fd[2];
 
@@ -141,20 +172,17 @@ void do_pipeline_commands(char **commands) {
                 return;
             }
 
-
             strcpy(cp, commands[i]);
             split(cp, command, " ");
             process = command[0];
 
-            get_process(process_path, process);
-
-            if (process_path[0] == '\0') {
+            if (!get_process(process_path, process)) {
                 printf("Unknown command: %s\n", process);
                 return;
             }
 
-            if(i < count - 1){
-                pid = fork();
+            if (i < count - 1){
+                int pid = fork();
                 if (pid == 0) { /* Child process */
                     /* Redirect fds */
                     dup2(stdout_fd[WRITE], STDOUT_FILENO);
@@ -167,7 +195,7 @@ void do_pipeline_commands(char **commands) {
 
                 dup2(stdout_fd[READ], STDIN_FILENO);
                 close(stdout_fd[WRITE]);
-            }else{
+            } else {
                 /* Use this fork for last process. */
                 execute(process_path, command);
             }
@@ -176,6 +204,8 @@ void do_pipeline_commands(char **commands) {
     }
 
     wait(NULL);
+    time_spent = (double) (clock() - begin) / CLOCKS_PER_SEC;
+    print_exec_time(time_spent);
 }
 
 void execute(char* process_path, char** command){
@@ -196,7 +226,7 @@ void sah_exit() {
     RUNNING = FALSE;
 }
 
-void sah_cd(char **cmd_args) {
+void sah_cd(char** cmd_args) {
     char* dir;
     if (cmd_args[0] == NULL) {
         dir = HOME_DIR;
@@ -217,43 +247,8 @@ void sah_cd(char **cmd_args) {
     }
 }
 
-void sah_start_process(char **cmd_args) {
-    char    process[MAX_PATH_LENGTH];
-    char*   cmd = cmd_args[0];
-    int     pid;
-
-    get_process(process, cmd);
-    if (process[0] == '\0') {
-        printf("Unknown command: %s\n", cmd);
-        return;
-    }
-
-    pid = fork();
-    if (pid == -1) {
-         /* Error */
-        printf("Could not fork process!\n");
-    } else if (pid == 0) {
-        /* Let first arg points to process path */
-        cmd_args[0] = process;
-
-        if (execv(cmd_args[0], cmd_args) == -1) {
-            printf("Could not execute program %s\n", process);
-        }
-    } else {
-        /* Parent proces */
-        double  time_spent;
-        clock_t begin = clock();
-
-        /* Wait for child */
-        wait(NULL);
-
-        time_spent = (double) (clock() - begin) / CLOCKS_PER_SEC;
-        print_exec_time(cmd_args[0], time_spent);
-    }
-}
-
-char* get_process(char* process, char* cmd) {
-    const char* path_env;
+int get_process(char* process, char* cmd) {
+    char* path_env;
 
     path_env = getenv("PATH");
     if (path_env != NULL){
@@ -268,16 +263,15 @@ char* get_process(char* process, char* cmd) {
             strcat(process, "/");
             strcat(process, cmd);
             if (file_exists(process)){
-                return process;
+                return TRUE;
             }
             i++;
         }
     }
-    *process = '\0';
-    return process;
+    return FALSE;
 }
 
-int file_exists(const char* path) {
+int file_exists(char* path) {
     return access(path, X_OK) == 0 ? TRUE : FALSE;
 }
 
@@ -310,7 +304,7 @@ int starts_with_homedir(char* s) {
     return -1;
 }
 
-void print_args(char **cmd_args) {
+void print_args(char** cmd_args) {
     int i = 0;
     printf("%s\n", "Args:");
     printf("%s\n", "---");
@@ -321,6 +315,6 @@ void print_args(char **cmd_args) {
     printf("%s\n", "---");
 }
 
-void print_exec_time(char* process, double time_spent) {
-    printf("'%s' total execution time: %f s\n", process, time_spent);
+void print_exec_time(double time_spent) {
+    printf("Execution time: %f s\n", time_spent);
 }

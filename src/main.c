@@ -31,6 +31,7 @@ char* get_process(char* process, char* cmd);
 
 void do_commands(char **cmd_args);
 void do_pipeline_commands(char **cmd_args);
+void execute(char* process_path, char** command);
 
 /* Commands */
 void sah_cd(char **cmd_args);
@@ -122,8 +123,6 @@ void do_commands(char **cmd_args) {
 
 void do_pipeline_commands(char **commands) {
     int     i = 0;
-    int     nbytes;
-    char    output[MAX_OUTPUT];
     int     count = 0;
 
     while(commands[count] != NULL) count++;
@@ -169,6 +168,7 @@ void do_pipeline_commands(char **commands) {
                 dup2(stdout_fd[READ], STDIN_FILENO);
                 close(stdout_fd[WRITE]);
             }else{
+                /* Use this fork for last process. */
                 execute(process_path, command);
             }
             i++;
@@ -282,10 +282,13 @@ int file_exists(const char* path) {
 }
 
 void print_prompt() {
-    int index = starts_with_homedir(CURRENT_DIR);
-    char tmp[MAX_PATH_LENGTH];
-    char* dir = index == -1 ? CURRENT_DIR : create_dir_string(tmp, index);
-    printf("%s $ ", dir);
+    int     index = starts_with_homedir(CURRENT_DIR);
+    char    tmp[MAX_PATH_LENGTH];
+    char*   dir = index == -1 ? CURRENT_DIR : create_dir_string(tmp, index);
+
+    printf(isatty(fileno(stdout)) ?
+           "\x1b[1m%s\x1b[0m \x1b[32m$ \x1b[0m" :
+           "%s $ ", dir);
 }
 
 char* create_dir_string(char* str, int index) {

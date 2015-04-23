@@ -3,7 +3,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <sys/wait.h>
-#include <time.h>
+#include <sys/time.h>
 
 #define MAX_COMMAND_ENTRY 1024
 #define MAX_PATH_LENGTH 1024
@@ -16,9 +16,10 @@
 #define READ  0
 #define WRITE  1
 
+
 void print_args(char** cmd_args);
 void print_prompt();
-void print_exec_time(double time_spent);
+void print_exec_time(struct timeval before, struct timeval after);
 
 void set_current_dir();
 void split(char* cmd_entry, char** cmd_args, char* delim);
@@ -152,10 +153,11 @@ void sah_check_env(char** cmd_args, char** cmd) {
 }
 
 void sah_start_processes(char** commands) {
-    int count = 0;
-    double time_spent;
-    clock_t begin = clock();
-
+    int     count = 0;
+    struct timeval before, after;
+    double time_elapsed = 0.0;
+    gettimeofday(&before, NULL);
+    
     while (commands[count] != NULL) count++;
 
     if (fork() == 0) {
@@ -204,8 +206,9 @@ void sah_start_processes(char** commands) {
     }
 
     wait(NULL);
-    time_spent = (double) (clock() - begin) / CLOCKS_PER_SEC;
-    print_exec_time(time_spent);
+    gettimeofday(&after, NULL);
+
+    print_exec_time(before, after);
 }
 
 void execute(char* process_path, char** command) {
@@ -317,6 +320,8 @@ void print_args(char** cmd_args) {
     printf("%s\n", "---");
 }
 
-void print_exec_time(double time_spent) {
-    printf("Execution time: %f s\n", time_spent);
+void print_exec_time(struct timeval before, struct timeval after) {
+    double time_elapsed = (after.tv_sec - before.tv_sec) * 1000.0;
+    time_elapsed += (after.tv_usec - before.tv_usec) / (1000.0 * 1000.0);
+    printf("Execution time: %f s\n", time_elapsed);
 }

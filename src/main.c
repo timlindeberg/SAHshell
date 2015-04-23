@@ -286,9 +286,11 @@ void print_prompt() {
     char    tmp[MAX_PATH_LENGTH];
     char*   dir = index == -1 ? CURRENT_DIR : create_dir_string(tmp, index);
 
-    printf(isatty(fileno(stdout)) ?
-           "\x1b[1m%s\x1b[0m \x1b[32m$ \x1b[0m" :
-           "%s $ ", dir);
+#ifndef NO_COLORS
+    printf("\x1b[1m%s\x1b[0m \x1b[32m$ \x1b[0m", dir);
+#else
+    printf("%s $ ", dir);
+#endif
 }
 
 char* create_dir_string(char* str, int index) {

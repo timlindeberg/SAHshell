@@ -4,6 +4,8 @@
 #include <string.h>
 #include <sys/wait.h>
 #include <sys/time.h>
+#include <bits/sigaction.h> /* TODO */
+#include <signal.h>
 
 #define MAX_COMMAND_ENTRY 1024
 #define MAX_PATH_LENGTH 1024
@@ -32,7 +34,6 @@ char* create_dir_string(char* str, int index);
 char* get_pager(char** pager);
 
 void do_commands(char** cmd_args);
-void do_pipeline_commands(char** cmd_args);
 void execute(char* process_path, char** command);
 
 /* Commands */
@@ -40,7 +41,22 @@ void sah_check_env(char** cmd_args, char** cmd);
 void sah_cd(char** cmd_args);
 void sah_exit();
 void sah_start_processes(char** cmd_args);
+void sah_start_background_process(char** cmd_args);
 
+
+static void signal_handler(int signo) {
+    puts("Interactive attention signal caught.");
+}
+
+static void signal_child_handler(int signo) {
+    int pid;
+    int status;
+    while ((pid = waitpid(-1, &status, WNOHANG)) != -1) {
+        fprintf(stderr, "\n Process with id '%d' exited with status '%d' \n", pid, status);
+    }
+    fflush(stdout);
+    fflush(stderr);
+}
 char* HOME_DIR;
 char PREVIOUS_DIR[MAX_PATH_LENGTH];
 char CURRENT_DIR[MAX_PATH_LENGTH];
@@ -49,7 +65,6 @@ int RUNNING;
 
 int main(int argc, char** argv, char** envp) {
     char cmd_entry[MAX_COMMAND_ENTRY];
-
     HOME_DIR = getenv("HOME");
     if (HOME_DIR != NULL) {
         printf("HOME_DIR: %s\n", HOME_DIR);
@@ -72,10 +87,9 @@ int main(int argc, char** argv, char** envp) {
             strcpy(cp, cmd_entry);
             split(cp, cmd_args, "|");
             do_commands(cmd_args);
-        } else {
-            printf("%s\n", "Could not fgets.");
-            return 0;
         }
+        fflush(stdout);
+        fflush(stderr);
     }
 
     return 0;
@@ -100,22 +114,22 @@ void split(char* string, char** string_array, char* delim) {
 }
 
 void do_commands(char** cmd_args) {
-    char    cp[MAX_PATH_LENGTH];
-    char*   cmd[MAX_ARGUMENTS];
-    int     count = 0;
+    char cp[MAX_PATH_LENGTH];
+    char* cmd[MAX_ARGUMENTS];
+    int count = 0;
 
     strcpy(cp, cmd_args[0]);
     split(cp, cmd, " ");
 
-    while(cmd[count] != NULL) count++;
+    while (cmd[count] != NULL) count++;
 
-    if(strcmp("&", cmd[count - 1]) == 0){
+    if (strcmp("&", cmd[count - 1]) == 0) {
         cmd[count - 1] = NULL;
         sah_start_background_process(cmd);
         return;
     }
 
-    if (strcmp("exit", cmd[0]) == 0 || strcmp("quit", cmd[0]) == 0 ) {
+    if (strcmp("exit", cmd[0]) == 0 || strcmp("quit", cmd[0]) == 0) {
         printf("%s\n", "Exit");
         sah_exit();
     } else if (strcmp("cd", cmd[0]) == 0) {
@@ -162,16 +176,18 @@ void sah_check_env(char** cmd_args, char** cmd) {
     sah_start_processes(cmds);
 }
 
-void sah_start_background_process(char** command){
-    char    process_path[MAX_PATH_LENGTH];
-    char*   process;
-    int     pid;
-    process = command[0];
+void sah_start_background_process(char** command) {
+    char process_path[MAX_PATH_LENGTH];
+    char* process;
+    int pid;
 
+    process = command[0];
     if (!get_process(process_path, process)) {
         printf("Unknown command: %s\n", process);
         return;
     }
+
+    /* signal(SIGCHLD, signal_child_handler); */
 
     pid = fork();
     if (pid == 0) { /* Child process */
@@ -180,17 +196,21 @@ void sah_start_background_process(char** command){
         printf("Could not fork process!\n");
         return;
     }
+    printf("Process %d \n", pid);
+
 }
 
 void sah_start_processes(char** commands) {
-    int     count = 0;
+    int count = 0;
+    int pid1 = 0;
     struct timeval before, after;
-    double time_elapsed = 0.0;
     gettimeofday(&before, NULL);
-    
+
     while (commands[count] != NULL) count++;
 
-    if (fork() == 0) {
+    signal(SIGINT, signal_handler);
+    pid1 = fork();
+    if (pid1 == 0) {
         int i = 0;
         while (commands[i] != NULL) {
             char* command[MAX_ARGUMENTS];
@@ -208,10 +228,7 @@ void sah_start_processes(char** commands) {
             split(cp, command, " ");
             process = command[0];
 
-            if (!get_process(process_path, process)) {
-                printf("Unknown command: %s\n", process);
-                return;
-            }
+            get_process(process_path, process);
 
             if (i < count - 1) {
                 int pid = fork();
@@ -233,9 +250,16 @@ void sah_start_processes(char** commands) {
             }
             i++;
         }
+    } else if (pid1 == -1) {  /* Error */
+        printf("Could not fork process!\n");
+        return;
     }
 
-    wait(NULL);
+    printf("WAITING: ");
+    waitpid(-1, NULL, 0);
+    printf("GOGOGO: ");
+    signal(SIGINT, SIG_DFL);
+
     gettimeofday(&after, NULL);
 
     print_exec_time(before, after);
@@ -282,6 +306,11 @@ void sah_cd(char** cmd_args) {
 
 int get_process(char* process, char* cmd) {
     char* path_env;
+
+    if (file_exists(cmd)){
+        strcpy(process, cmd);
+        return TRUE;
+    }
 
     path_env = getenv("PATH");
     if (path_env != NULL) {
@@ -355,3 +384,5 @@ void print_exec_time(struct timeval before, struct timeval after) {
     time_elapsed += (after.tv_usec - before.tv_usec) / (1000.0 * 1000.0);
     printf("Execution time: %f s\n", time_elapsed);
 }
+
+

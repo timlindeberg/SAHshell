@@ -33,6 +33,5 @@
 
 # CLion Files
 .idea/
-CMakeLists.txt
 
 bin

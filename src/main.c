@@ -46,7 +46,7 @@ char CURRENT_DIR[MAX_PATH_LENGTH];
 
 int RUNNING;
 
-int main(int argc, char** argv, char** envp){
+int main(int argc, char** argv, char** envp) {
     char cmd_entry[MAX_COMMAND_ENTRY];
 
     HOME_DIR = getenv("HOME");
@@ -61,7 +61,7 @@ int main(int argc, char** argv, char** envp){
     strcpy(PREVIOUS_DIR, CURRENT_DIR);
     RUNNING = TRUE;
     while (RUNNING) {
-        char *cmd_args[MAX_ARGUMENTS];
+        char* cmd_args[MAX_ARGUMENTS];
         set_current_dir();
         print_prompt();
 
@@ -104,7 +104,7 @@ void do_commands(char** cmd_args) {
     strcpy(cp, cmd_args[0]);
     split(cp, cmd, " ");
 
-    if (strcmp("exit", cmd[0]) == 0 || strcmp("quit", cmd[0]) == 0 ) {
+    if (strcmp("exit", cmd[0]) == 0 || strcmp("quit", cmd[0]) == 0) {
         printf("%s\n", "Exit");
         sah_exit();
     } else if (strcmp("cd", cmd[0]) == 0) {
@@ -119,10 +119,10 @@ void do_commands(char** cmd_args) {
     }
 }
 
-char* get_pager(char** pager){
+char* get_pager(char** pager) {
     *pager = getenv("PAGER");
-    if (*pager == NULL){
-        char  cp[MAX_OUTPUT];
+    if (*pager == NULL) {
+        char cp[MAX_OUTPUT];
         *pager = get_process(cp, "less") ? "less" :
                  get_process(cp, "more") ? "more" :
                  NULL;
@@ -130,18 +130,18 @@ char* get_pager(char** pager){
     return *pager;
 }
 
-void sah_check_env(char** cmd_args, char** cmd){
-    char*   cmds[MAX_ARGUMENTS];
-    char    grep[MAX_PATH_LENGTH];
-    char*   pager = NULL;
-    int     i = 0;
+void sah_check_env(char** cmd_args, char** cmd) {
+    char* cmds[MAX_ARGUMENTS];
+    char grep[MAX_PATH_LENGTH];
+    char* pager = NULL;
+    int i = 0;
     cmds[i++] = "printenv";
-    if (cmd[1] != NULL){
+    if (cmd[1] != NULL) {
         strcpy(grep, "grep ");
         strcat(grep, cmd_args[0] + sizeof("checkEnv"));
         cmds[i++] = grep;
     }
-    if (get_pager(&pager) == NULL){
+    if (get_pager(&pager) == NULL) {
         printf("Could not find pagers more or less.");
         return;
     }
@@ -152,20 +152,20 @@ void sah_check_env(char** cmd_args, char** cmd){
 }
 
 void sah_start_processes(char** commands) {
-    int     count = 0;
-    double  time_spent;
+    int count = 0;
+    double time_spent;
     clock_t begin = clock();
 
     while (commands[count] != NULL) count++;
 
-    if (fork() == 0){
+    if (fork() == 0) {
         int i = 0;
         while (commands[i] != NULL) {
-            char*   command[MAX_ARGUMENTS];
-            char    cp[MAX_PATH_LENGTH];
-            char    process_path[MAX_PATH_LENGTH];
-            char*   process;
-            int     stdout_fd[2];
+            char* command[MAX_ARGUMENTS];
+            char cp[MAX_PATH_LENGTH];
+            char process_path[MAX_PATH_LENGTH];
+            char* process;
+            int stdout_fd[2];
 
             if (pipe(stdout_fd) == -1) {
                 printf("Could not create pipe!\n");
@@ -181,7 +181,7 @@ void sah_start_processes(char** commands) {
                 return;
             }
 
-            if (i < count - 1){
+            if (i < count - 1) {
                 int pid = fork();
                 if (pid == 0) { /* Child process */
                     /* Redirect fds */
@@ -208,7 +208,7 @@ void sah_start_processes(char** commands) {
     print_exec_time(time_spent);
 }
 
-void execute(char* process_path, char** command){
+void execute(char* process_path, char** command) {
     command[0] = process_path;
     if (execv(process_path, command) == -1) {
         printf("Could not execute program %s\n", process_path);
@@ -251,10 +251,10 @@ int get_process(char* process, char* cmd) {
     char* path_env;
 
     path_env = getenv("PATH");
-    if (path_env != NULL){
-        char*   paths[MAX_ARGUMENTS];
-        char    cp[MAX_PATH_LENGTH];
-        int     i = 0;
+    if (path_env != NULL) {
+        char* paths[MAX_ARGUMENTS];
+        char cp[MAX_PATH_LENGTH];
+        int i = 0;
 
         strcpy(cp, path_env);
         split(cp, paths, ":");
@@ -262,7 +262,7 @@ int get_process(char* process, char* cmd) {
             strcpy(process, paths[i]);
             strcat(process, "/");
             strcat(process, cmd);
-            if (file_exists(process)){
+            if (file_exists(process)) {
                 return TRUE;
             }
             i++;
@@ -276,14 +276,16 @@ int file_exists(char* path) {
 }
 
 void print_prompt() {
-    int     index = starts_with_homedir(CURRENT_DIR);
-    char    tmp[MAX_PATH_LENGTH];
-    char*   dir = index == -1 ? CURRENT_DIR : create_dir_string(tmp, index);
+    int index = starts_with_homedir(CURRENT_DIR);
+    char tmp[MAX_PATH_LENGTH];
+    char* dir = index == -1 ? CURRENT_DIR : create_dir_string(tmp, index);
+    char* name;
 
+    name = getenv("USER");
 #ifndef NO_COLORS
-    printf("\x1b[1m%s\x1b[0m \x1b[32m$ \x1b[0m", dir);
+    printf("\x1b[1;34m%s\x1b[0m: \x1b[32m$ \x1b[0m", name, dir);
 #else
-    printf("%s $ ", dir);
+    printf("%s: %s $ ", name, dir);
 #endif
 }
 
@@ -295,9 +297,9 @@ char* create_dir_string(char* str, int index) {
 
 int starts_with_homedir(char* s) {
     int i = 0;
-    while (s[i] == HOME_DIR[i]){
+    while (s[i] == HOME_DIR[i]) {
         i++;
-        if (HOME_DIR[i] == '\0'){
+        if (HOME_DIR[i] == '\0') {
             return i;
         }
     }

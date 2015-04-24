@@ -283,7 +283,7 @@ void print_prompt() {
 
     name = getenv("USER");
 #ifndef NO_COLORS
-    printf("\x1b[1;34m%s\x1b[0m: \x1b[32m$ \x1b[0m", name, dir);
+    printf("\x1b[34m%s\x1b[0m: \x1b[1m%s\x1b[0m \x1b[32m $ \x1b[0m", name, dir);
 #else
     printf("%s: %s $ ", name, dir);
 #endif

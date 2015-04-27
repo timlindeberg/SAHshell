@@ -4,7 +4,6 @@
 #include <string.h>
 #include <sys/wait.h>
 #include <sys/time.h>
-#include <bits/sigaction.h> /* TODO */
 #include <signal.h>
 
 #define MAX_COMMAND_ENTRY 1024
@@ -35,6 +34,7 @@ char* get_pager(char** pager);
 
 void do_commands(char** cmd_args);
 void execute(char* process_path, char** command);
+int get_child_process_ids(int* list);
 
 /* Commands */
 void sah_check_env(char** cmd_args, char** cmd);
@@ -43,20 +43,14 @@ void sah_exit();
 void sah_start_processes(char** cmd_args);
 void sah_start_background_process(char** cmd_args);
 
-
-static void signal_handler(int signo) {
-    puts("Interactive attention signal caught.");
-}
-
-static void signal_child_handler(int signo) {
-    int pid;
-    int status;
-    while ((pid = waitpid(-1, &status, WNOHANG)) != -1) {
-        fprintf(stderr, "\n Process with id '%d' exited with status '%d' \n", pid, status);
+static void sigchld_handler(int signo) {
+    int pid, status;
+    signal(SIGCHLD, sigchld_handler);
+    while((pid = waitpid(-1, &status, WNOHANG)) > 0){
+        fprintf(stderr, "\nProcess with id '%d' exited with status '%d' \n", pid, status);
     }
-    fflush(stdout);
-    fflush(stderr);
 }
+
 char* HOME_DIR;
 char PREVIOUS_DIR[MAX_PATH_LENGTH];
 char CURRENT_DIR[MAX_PATH_LENGTH];
@@ -64,35 +58,55 @@ char CURRENT_DIR[MAX_PATH_LENGTH];
 int RUNNING;
 
 int main(int argc, char** argv, char** envp) {
-    char cmd_entry[MAX_COMMAND_ENTRY];
+    signal(SIGTSTP, SIG_IGN);
+
+#ifdef SIGDET
+    signal(SIGCHLD, sigchld_handler);
+#endif
+
     HOME_DIR = getenv("HOME");
-    if (HOME_DIR != NULL) {
-        printf("HOME_DIR: %s\n", HOME_DIR);
-    } else {
+    if (HOME_DIR == NULL) {
         printf("%s\n", "Could not set HOME_DIR.");
     }
-
-    set_current_dir();
 
     strcpy(PREVIOUS_DIR, CURRENT_DIR);
     RUNNING = TRUE;
     while (RUNNING) {
-        char* cmd_args[MAX_ARGUMENTS];
+        char cmd_entry[MAX_COMMAND_ENTRY];
+
         set_current_dir();
         print_prompt();
 
         if (fgets(cmd_entry, MAX_COMMAND_ENTRY, stdin) != NULL) {
+            char* cmd_args[MAX_ARGUMENTS];
             char cp[MAX_PATH_LENGTH];
+
             strtok(cmd_entry, "\n"); /* Remove trailing newline */
             strcpy(cp, cmd_entry);
             split(cp, cmd_args, "|");
             do_commands(cmd_args);
+        } else if (feof(stdin)) {
+            printf("End of file!");
+            exit(0);
         }
-        fflush(stdout);
-        fflush(stderr);
+
+#ifndef SIGDET
+        wait_for_children();
+#endif
+
     }
 
+    signal(SIGTERM, SIG_IGN);
+    kill(-getpid(), SIGTERM);
+
     return 0;
+}
+
+void wait_for_children() {
+    int pid = 0, status = 0;
+    while((pid = waitpid(-1, &status, WNOHANG)) > 0){
+        fprintf(stderr, "Process with id '%d' exited with status '%d' \n", pid, status);
+    }
 }
 
 void set_current_dir() {
@@ -187,8 +201,6 @@ void sah_start_background_process(char** command) {
         return;
     }
 
-    /* signal(SIGCHLD, signal_child_handler); */
-
     pid = fork();
     if (pid == 0) { /* Child process */
         execute(process_path, command);
@@ -196,8 +208,8 @@ void sah_start_background_process(char** command) {
         printf("Could not fork process!\n");
         return;
     }
-    printf("Process %d \n", pid);
 
+    printf("PID: %d\n", pid);
 }
 
 void sah_start_processes(char** commands) {
@@ -208,7 +220,6 @@ void sah_start_processes(char** commands) {
 
     while (commands[count] != NULL) count++;
 
-    signal(SIGINT, signal_handler);
     pid1 = fork();
     if (pid1 == 0) {
         int i = 0;
@@ -255,9 +266,12 @@ void sah_start_processes(char** commands) {
         return;
     }
 
-    printf("WAITING: ");
-    waitpid(-1, NULL, 0);
-    printf("GOGOGO: ");
+    /* Ignore SIGINT */
+    signal(SIGINT, SIG_IGN);
+
+    waitpid(pid1, NULL, 0);
+
+    /* Clear SIGINT signal */
     signal(SIGINT, SIG_DFL);
 
     gettimeofday(&after, NULL);
@@ -381,8 +395,8 @@ void print_args(char** cmd_args) {
 
 void print_exec_time(struct timeval before, struct timeval after) {
     double time_elapsed = (after.tv_sec - before.tv_sec) * 1000.0;
-    time_elapsed += (after.tv_usec - before.tv_usec) / (1000.0 * 1000.0);
-    printf("Execution time: %f s\n", time_elapsed);
+    time_elapsed += (after.tv_usec - before.tv_usec) / 1000.0;
+    printf("Execution time: %f s\n", time_elapsed / 1000.0);
 }
 
 

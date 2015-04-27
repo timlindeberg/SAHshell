@@ -4,6 +4,7 @@
 #include <string.h>
 #include <sys/wait.h>
 #include <sys/time.h>
+#include <sys/types.h>
 #include <signal.h>
 
 #define MAX_COMMAND_ENTRY 1024
@@ -17,6 +18,7 @@
 #define READ  0
 #define WRITE  1
 
+int kill(int a, int b);
 
 void print_args(char** cmd_args);
 void print_prompt();
@@ -28,13 +30,14 @@ void split(char* cmd_entry, char** cmd_args, char* delim);
 int starts_with_homedir(char* s);
 int file_exists(char* path);
 int get_process(char* process, char* cmd);
+int get_child_process_ids(int* list);
 
 char* create_dir_string(char* str, int index);
 char* get_pager(char** pager);
 
 void do_commands(char** cmd_args);
 void execute(char* process_path, char** command);
-int get_child_process_ids(int* list);
+void wait_for_children();
 
 /* Commands */
 void sah_check_env(char** cmd_args, char** cmd);
@@ -43,6 +46,7 @@ void sah_exit();
 void sah_start_processes(char** cmd_args);
 void sah_start_background_process(char** cmd_args);
 
+#ifdef SIGDET
 static void sigchld_handler(int signo) {
     int pid, status;
     signal(SIGCHLD, sigchld_handler);
@@ -50,6 +54,7 @@ static void sigchld_handler(int signo) {
         fprintf(stderr, "\nProcess with id '%d' exited with status '%d' \n", pid, status);
     }
 }
+#endif
 
 char* HOME_DIR;
 char PREVIOUS_DIR[MAX_PATH_LENGTH];
@@ -102,12 +107,14 @@ int main(int argc, char** argv, char** envp) {
     return 0;
 }
 
+#ifndef SIGDET
 void wait_for_children() {
     int pid = 0, status = 0;
     while((pid = waitpid(-1, &status, WNOHANG)) > 0){
         fprintf(stderr, "Process with id '%d' exited with status '%d' \n", pid, status);
     }
 }
+#endif
 
 void set_current_dir() {
     if (getcwd(CURRENT_DIR, MAX_PATH_LENGTH) == NULL) {

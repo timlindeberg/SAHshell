@@ -1,5 +1,4 @@
 FLAGS = -pedantic -Wall -ansi -g
-
 FILES = src/main.c
 
 all: bin/Main.out

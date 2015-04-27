@@ -2,15 +2,15 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <sys/wait.h>
 #include <sys/time.h>
 #include <sys/types.h>
 #include <signal.h>
+#include <assert.h>
+#include <sys/errno.h>
 
-#define MAX_COMMAND_ENTRY 1024
-#define MAX_PATH_LENGTH 1024
+#define MAX_COMMAND_ENTRY 80
+#define MAX_PATH_LENGTH 4096
 #define MAX_ARGUMENTS 32
-#define MAX_OUTPUT 65536
 
 #define TRUE  1
 #define FALSE 0
@@ -20,7 +20,6 @@
 
 int kill(int a, int b);
 
-void print_args(char** cmd_args);
 void print_prompt();
 void print_exec_time(struct timeval before, struct timeval after);
 
@@ -30,7 +29,7 @@ void split(char* cmd_entry, char** cmd_args, char* delim);
 int starts_with_homedir(char* s);
 int file_exists(char* path);
 int get_process_path(char* process, char* cmd);
-int get_child_process_ids(int* list);
+void wait_for_children();
 
 char* create_dir_string(char* str, int index);
 char* get_pager(char** pager);
@@ -46,13 +45,34 @@ void sah_exit();
 void sah_start_processes(char** cmd_args);
 void sah_start_background_process(char** cmd_args);
 
+#define check(condition, msg) if(condition){ fprintf(stderr, "%s[l:%d]: ", __FILE__, __LINE__); perror(msg); sah_exit(); }
+
+/* System error messages */
+
+static char* SIGNAL_ERR      = "Failed to register signal handler";
+static char* HOME_ENV_ERR    = "Could not get HOME env";
+static char* PATH_ENV_ERR    = "Could not get PATH env";
+static char* USER_ENV_ERR    = "Could not get USER env";
+static char* WORKING_DIR_ERR = "Could not get working directory";
+static char* FORK_ERR        = "Could not fork process";
+static char* TIME_ERR        = "Could not get current time";
+static char* PIPE_ERR        = "Could not create pipe";
+static char* DUP_ERR         = "Could not duplicate file descriptor";
+static char* CLOSE_ERR       = "Could not close pipe file descriptor";
+static char* WAIT_ERR        = "Error when waiting for child process";
+
 #ifdef SIGDET
 static void sigchld_handler(int signo) {
     int pid, status;
+    assert(signo == SIGCHLD);
     signal(SIGCHLD, sigchld_handler);
-    while((pid = waitpid(-1, &status, WNOHANG)) > 0){
-        fprintf(stderr, "\nProcess with id '%d' exited with status '%d' \n", pid, status);
-    }
+    do{
+        pid = waitpid(-1, &status, WNOHANG);
+        check(pid != -1, WAIT_ERR);
+        if(pid > 0){
+            fprintf(stderr, "\nProcess with id '%d' exited with status '%d' \n", pid, status);
+        }
+    }while(pid > 0);
 }
 #endif
 
@@ -60,23 +80,21 @@ char* HOME_DIR;
 char PREVIOUS_DIR[MAX_PATH_LENGTH];
 char CURRENT_DIR[MAX_PATH_LENGTH];
 
-int RUNNING;
-
 int main(int argc, char** argv, char** envp) {
-    signal(SIGTSTP, SIG_IGN);
+
+    check(signal(SIGTSTP, SIG_IGN) == SIG_ERR, SIGNAL_ERR);
+    check(signal(SIGTERM, SIG_IGN) == SIG_ERR, SIGNAL_ERR);
 
 #ifdef SIGDET
-    signal(SIGCHLD, sigchld_handler);
+    check(signal(SIGCHLD, sigchld_handler) == SIG_ERR, SIGNAL_ERR);
 #endif
 
+
     HOME_DIR = getenv("HOME");
-    if (HOME_DIR == NULL) {
-        printf("%s\n", "Could not set HOME_DIR.");
-    }
+    check(HOME_DIR == NULL, HOME_ENV_ERR);
 
     strcpy(PREVIOUS_DIR, CURRENT_DIR);
-    RUNNING = TRUE;
-    while (RUNNING) {
+    while (TRUE) {
         char cmd_entry[MAX_COMMAND_ENTRY];
 
         set_current_dir();
@@ -95,20 +113,13 @@ int main(int argc, char** argv, char** envp) {
                 do_commands(cmd_args);
             }
         } else if (feof(stdin)) {
-            printf("End of file!");
             exit(0);
         }
 
 #ifndef SIGDET
         wait_for_children();
 #endif
-
     }
-
-    signal(SIGTERM, SIG_IGN);
-    kill(-getpid(), SIGTERM);
-
-    return 0;
 }
 
 #ifndef SIGDET
@@ -121,10 +132,7 @@ void wait_for_children() {
 #endif
 
 void set_current_dir() {
-    if (getcwd(CURRENT_DIR, MAX_PATH_LENGTH) == NULL) {
-        printf("%s\n", "Could not get working directory");
-        exit(0);
-    }
+    check(getcwd(CURRENT_DIR, MAX_PATH_LENGTH) == NULL, WORKING_DIR_ERR);
 }
 
 void split(char* string, char** string_array, char* delim) {
@@ -173,7 +181,7 @@ void do_commands(char** cmd_args) {
 char* get_pager(char** pager) {
     *pager = getenv("PAGER");
     if (*pager == NULL) {
-        char cp[MAX_OUTPUT];
+        char cp[MAX_PATH_LENGTH];
         *pager = get_process_path(cp, "less") ? "less" :
                  get_process_path(cp, "more") ? "more" :
                  NULL;
@@ -212,11 +220,10 @@ void sah_start_background_process(char** command) {
     get_process_path(process_path, process);
 
     pid = fork();
-    if (pid == 0) { /* Child process */
+    check(pid == -1, FORK_ERR);
+
+    if (pid == 0) {
         execute(process_path, command);
-    } else if (pid == -1) {  /* Error */
-        printf("Could not fork process!\n");
-        return;
     }
 
     printf("PID: %d\n", pid);
@@ -225,12 +232,15 @@ void sah_start_background_process(char** command) {
 void sah_start_processes(char** commands) {
     int count = 0;
     int pid1 = 0;
+    #ifndef __MACH__
     struct timeval before, after;
-    gettimeofday(&before, NULL);
+        check(gettimeofday(&before, NULL) != -1, TIME_ERR);
+    #endif
 
     while (commands[count] != NULL) count++;
 
     pid1 = fork();
+    check(pid1 == -1, FORK_ERR);
     if (pid1 == 0) {
         int i = 0;
         while (commands[i] != NULL) {
@@ -240,11 +250,7 @@ void sah_start_processes(char** commands) {
             char* process;
             int stdout_fd[2];
 
-            if (pipe(stdout_fd) == -1) {
-                exit(0);
-                printf("Could not create pipe!\n");
-                return;
-            }
+            check(pipe(stdout_fd) == -1, PIPE_ERR);
 
             strcpy(cp, commands[i]);
             split(cp, command, " ");
@@ -254,47 +260,45 @@ void sah_start_processes(char** commands) {
 
             if (i < count - 1) {
                 int pid = fork();
+                check(pid == -1, FORK_ERR);
                 if (pid == 0) { /* Child process */
                     /* Redirect fds */
-                    dup2(stdout_fd[WRITE], STDOUT_FILENO);
-                    close(stdout_fd[WRITE]);
+                    check(dup2(stdout_fd[WRITE], STDOUT_FILENO) == -1, DUP_ERR);
+                    check(close(stdout_fd[WRITE]) == -1, CLOSE_ERR);
                     execute(process_path, command);
-                } else if (pid == -1) {  /* Error */
-                    printf("Could not fork process!\n");
-                    return;
                 }
 
-                dup2(stdout_fd[READ], STDIN_FILENO);
-                close(stdout_fd[WRITE]);
+                check(dup2(stdout_fd[READ], STDIN_FILENO) == -1, DUP_ERR);
+                check(close(stdout_fd[WRITE]) == -1 , CLOSE_ERR);
             } else {
                 /* Use this fork for last process. */
                 execute(process_path, command);
             }
             i++;
         }
-    } else if (pid1 == -1) {  /* Error */
-        printf("Could not fork process!\n");
-        return;
     }
 
     /* Ignore SIGINT */
-    signal(SIGINT, SIG_IGN);
+    check(signal(SIGINT, SIG_IGN) == SIG_ERR, SIGNAL_ERR);
 
-    waitpid(pid1, NULL, 0);
+    if(waitpid(pid1, NULL, 0) == -1 && errno != ECHILD){
+        perror(WAIT_ERR);
+    }
 
     /* Clear SIGINT signal */
-    signal(SIGINT, SIG_DFL);
+    check(signal(SIGINT, SIG_DFL) == SIG_ERR, SIGNAL_ERR);
 
-    gettimeofday(&after, NULL);
-
+    #ifndef __MACH__
+    check(gettimeofday(&after, NULL) != -1, TIME_ERR);
     print_exec_time(before, after);
+    #endif
 }
 
 void execute(char* process_path, char** command) {
     command[0] = process_path;
     if (execv(process_path, command) == -1) {
         printf("Could not execute program %s\n", process_path);
-        exit(1);
+        sah_exit();
     }
 }
 
@@ -305,7 +309,7 @@ void execute(char* process_path, char** command) {
 */
 
 void sah_exit() {
-    RUNNING = FALSE;
+    kill(-getpid(), SIGTERM);
 }
 
 void sah_cd(char** cmd_args) {
@@ -331,6 +335,9 @@ void sah_cd(char** cmd_args) {
 
 int get_process_path(char* process_path, char* process) {
     char* path_env;
+    char* paths[MAX_ARGUMENTS];
+    char cp[MAX_PATH_LENGTH];
+    int i = 0;
 
     if (file_exists(process)){
         strcpy(process_path, process);
@@ -338,22 +345,18 @@ int get_process_path(char* process_path, char* process) {
     }
 
     path_env = getenv("PATH");
-    if (path_env != NULL) {
-        char* paths[MAX_ARGUMENTS];
-        char cp[MAX_PATH_LENGTH];
-        int i = 0;
+    check(path_env == NULL, PATH_ENV_ERR);
 
-        strcpy(cp, path_env);
-        split(cp, paths, ":");
-        while (paths[i] != NULL) {
-            strcpy(process_path, paths[i]);
-            strcat(process_path, "/");
-            strcat(process_path, process);
-            if (file_exists(process_path)) {
-                return TRUE;
-            }
-            i++;
+    strcpy(cp, path_env);
+    split(cp, paths, ":");
+    while (paths[i] != NULL) {
+        strcpy(process_path, paths[i]);
+        strcat(process_path, "/");
+        strcat(process_path, process);
+        if (file_exists(process_path)) {
+            return TRUE;
         }
+        i++;
     }
 
     /* Could not find a path, assign the process as path */
@@ -373,6 +376,8 @@ void print_prompt() {
     char* name;
 
     name = getenv("USER");
+    check(name == NULL, USER_ENV_ERR);
+
 #ifndef NO_COLORS
     printf("\x1b[34m%s\x1b[0m: \x1b[1m%s\x1b[0m \x1b[32m $ \x1b[0m", name, dir);
 #else
@@ -395,17 +400,6 @@ int starts_with_homedir(char* s) {
         }
     }
     return -1;
-}
-
-void print_args(char** cmd_args) {
-    int i = 0;
-    printf("%s\n", "Args:");
-    printf("%s\n", "---");
-    while (cmd_args[i] != NULL) {
-        printf("%s\n", cmd_args[i]);
-        i++;
-    }
-    printf("%s\n", "---");
 }
 
 void print_exec_time(struct timeval before, struct timeval after) {

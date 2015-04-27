@@ -1,9 +1,10 @@
-#include <unistd.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <sys/time.h>
+#include <sys/wait.h>
 #include <sys/types.h>
+#include <sys/time.h>
+#include <unistd.h>
 #include <signal.h>
 #include <assert.h>
 #include <sys/errno.h>
@@ -234,7 +235,7 @@ void sah_start_processes(char** commands) {
     int pid1 = 0;
     #ifndef __MACH__
     struct timeval before, after;
-        check(gettimeofday(&before, NULL) != -1, TIME_ERR);
+        check(gettimeofday(&before, NULL) == -1, TIME_ERR);
     #endif
 
     while (commands[count] != NULL) count++;
@@ -289,7 +290,7 @@ void sah_start_processes(char** commands) {
     check(signal(SIGINT, SIG_DFL) == SIG_ERR, SIGNAL_ERR);
 
     #ifndef __MACH__
-    check(gettimeofday(&after, NULL) != -1, TIME_ERR);
+    check(gettimeofday(&after, NULL) == -1, TIME_ERR);
     print_exec_time(before, after);
     #endif
 }

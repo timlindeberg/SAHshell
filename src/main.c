@@ -29,7 +29,7 @@ void split(char* cmd_entry, char** cmd_args, char* delim);
 
 int starts_with_homedir(char* s);
 int file_exists(char* path);
-int get_process(char* process, char* cmd);
+int get_process_path(char* process, char* cmd);
 int get_child_process_ids(int* list);
 
 char* create_dir_string(char* str, int index);
@@ -83,13 +83,17 @@ int main(int argc, char** argv, char** envp) {
         print_prompt();
 
         if (fgets(cmd_entry, MAX_COMMAND_ENTRY, stdin) != NULL) {
-            char* cmd_args[MAX_ARGUMENTS];
-            char cp[MAX_PATH_LENGTH];
+            /* Remove trailing newline */
+            int ln = strlen(cmd_entry) - 1;
+            if (cmd_entry[ln] == '\n') cmd_entry[ln] = '\0';
 
-            strtok(cmd_entry, "\n"); /* Remove trailing newline */
-            strcpy(cp, cmd_entry);
-            split(cp, cmd_args, "|");
-            do_commands(cmd_args);
+            if (strlen(cmd_entry) > 0) {
+                char* cmd_args[MAX_ARGUMENTS];
+                char cp[MAX_PATH_LENGTH];
+                strcpy(cp, cmd_entry);
+                split(cp, cmd_args, "|");
+                do_commands(cmd_args);
+            }
         } else if (feof(stdin)) {
             printf("End of file!");
             exit(0);
@@ -150,6 +154,7 @@ void do_commands(char** cmd_args) {
         return;
     }
 
+
     if (strcmp("exit", cmd[0]) == 0 || strcmp("quit", cmd[0]) == 0) {
         printf("%s\n", "Exit");
         sah_exit();
@@ -169,8 +174,8 @@ char* get_pager(char** pager) {
     *pager = getenv("PAGER");
     if (*pager == NULL) {
         char cp[MAX_OUTPUT];
-        *pager = get_process(cp, "less") ? "less" :
-                 get_process(cp, "more") ? "more" :
+        *pager = get_process_path(cp, "less") ? "less" :
+                 get_process_path(cp, "more") ? "more" :
                  NULL;
     }
     return *pager;
@@ -203,10 +208,8 @@ void sah_start_background_process(char** command) {
     int pid;
 
     process = command[0];
-    if (!get_process(process_path, process)) {
-        printf("Unknown command: %s\n", process);
-        return;
-    }
+
+    get_process_path(process_path, process);
 
     pid = fork();
     if (pid == 0) { /* Child process */
@@ -238,6 +241,7 @@ void sah_start_processes(char** commands) {
             int stdout_fd[2];
 
             if (pipe(stdout_fd) == -1) {
+                exit(0);
                 printf("Could not create pipe!\n");
                 return;
             }
@@ -246,7 +250,7 @@ void sah_start_processes(char** commands) {
             split(cp, command, " ");
             process = command[0];
 
-            get_process(process_path, process);
+            get_process_path(process_path, process);
 
             if (i < count - 1) {
                 int pid = fork();
@@ -325,11 +329,11 @@ void sah_cd(char** cmd_args) {
     }
 }
 
-int get_process(char* process, char* cmd) {
+int get_process_path(char* process_path, char* process) {
     char* path_env;
 
-    if (file_exists(cmd)){
-        strcpy(process, cmd);
+    if (file_exists(process)){
+        strcpy(process_path, process);
         return TRUE;
     }
 
@@ -342,15 +346,19 @@ int get_process(char* process, char* cmd) {
         strcpy(cp, path_env);
         split(cp, paths, ":");
         while (paths[i] != NULL) {
-            strcpy(process, paths[i]);
-            strcat(process, "/");
-            strcat(process, cmd);
-            if (file_exists(process)) {
+            strcpy(process_path, paths[i]);
+            strcat(process_path, "/");
+            strcat(process_path, process);
+            if (file_exists(process_path)) {
                 return TRUE;
             }
             i++;
         }
     }
+
+    /* Could not find a path, assign the process as path */
+    strcpy(process_path, process);
+
     return FALSE;
 }
 
@@ -405,5 +413,3 @@ void print_exec_time(struct timeval before, struct timeval after) {
     time_elapsed += (after.tv_usec - before.tv_usec) / 1000.0;
     printf("Execution time: %f s\n", time_elapsed / 1000.0);
 }
-
-

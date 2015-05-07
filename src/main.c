@@ -19,6 +19,9 @@
 #define READ  0
 #define WRITE  1
 
+typedef char Commands[MAX_ARGUMENTS][MAX_ARGUMENTS][MAX_COMMAND_ENTRY];
+typedef char (*Command)[MAX_COMMAND_ENTRY];
+
 int kill(int a, int b);
 
 void print_prompt();
@@ -35,19 +38,20 @@ void wait_for_children();
 char* create_dir_string(char* str, int index);
 char* get_pager(char** pager);
 
-void do_commands(char commands[MAX_ARGUMENTS][MAX_ARGUMENTS][MAX_COMMAND_ENTRY]);
-void execute(char* process_path, char (*command)[MAX_COMMAND_ENTRY]);
+void do_commands(Commands commands);
+void execute(char* process_path, Command command);
 void wait_for_children();
 
 void escape_string(char str[MAX_COMMAND_ENTRY]);
-void parse_commands(char** args, char* cmd_entry);
+void parse_commands(char cmd_entry[MAX_COMMAND_ENTRY], Commands commands);
+void _parse_commands(char** args, char* cmd_entry);
 
 /* Commands */
-void sah_check_env(char commands[MAX_ARGUMENTS][MAX_ARGUMENTS][MAX_COMMAND_ENTRY]);
-void sah_cd(char** cmd_args);
+void sah_check_env(Commands commands);
+void sah_cd(char (*cmd)[MAX_COMMAND_ENTRY]);
 void sah_exit();
-void sah_start_processes(char commands[MAX_ARGUMENTS][MAX_ARGUMENTS][MAX_COMMAND_ENTRY]);
-void sah_start_background_process(char (*command)[MAX_COMMAND_ENTRY]);
+void sah_start_processes(Commands commands);
+void sah_start_background_process(Command command);
 
 #define check(condition, msg) if(condition){ fprintf(stderr, "%s[l:%d]: ", __FILE__, __LINE__); perror(msg); sah_exit(); }
 
@@ -68,14 +72,14 @@ static char* WAIT_ERR        = "Error when waiting for child process";
 static void sigchld_handler(int signo) {
     int pid, status;
     assert(signo == SIGCHLD);
-    signal(SIGCHLD, sigchld_handler);
     do{
         pid = waitpid(-1, &status, WNOHANG);
-        check(pid != -1, WAIT_ERR);
+        check(pid == -1 && errno != ECHILD, WAIT_ERR);
         if(pid > 0){
             fprintf(stderr, "\nProcess with id '%d' exited with status '%d' \n", pid, status);
         }
     }while(pid > 0);
+    signal(SIGCHLD, sigchld_handler);
 }
 #endif
 
@@ -110,62 +114,8 @@ int main(int argc, char** argv, char** envp) {
 
             /* */
             if (strlen(cmd_entry) > 0) {
-                int i = 0;
-                int j = 0;
-                int k = 0;
-                char* cmd_args[MAX_ARGUMENTS];
-
-                char commands[MAX_ARGUMENTS][MAX_ARGUMENTS][MAX_COMMAND_ENTRY];
-
-                while (i < MAX_ARGUMENTS) {
-                    j = 0;
-                    while (j < MAX_ARGUMENTS) {
-                        k = 0;
-                        while (k < MAX_ARGUMENTS) {
-                            commands[i][j][k] = '\0';
-                            ++k;
-                        }
-                        ++j;
-                    }
-                    ++i;
-                }
-
-                split(cmd_entry, cmd_args, "|");
-
-                i = 0;
-                while(cmd_args[i] != NULL){
-                    printf("[%s]\n", cmd_args[i]);
-                    ++i;
-                }
-
-                i = 0;
-                while(cmd_args[i] != NULL){
-                    char* tmp[MAX_ARGUMENTS];
-                    parse_commands(tmp, cmd_args[i]);
-                    j = 0;
-                    while(tmp[j] != NULL) {
-                        strcpy(commands[i][j], tmp[j]);
-                        escape_string(commands[i][j]);
-                        j++;
-                    }
-                    i++;
-                }
-
-
-                /*
-                i = 0;
-                while (i < MAX_ARGUMENTS) {
-                    j = 0;
-                    while (j < MAX_ARGUMENTS) {
-                        if(strlen(commands[i][j]) > 0) {
-                            printf("(%i, %i): %s\n", i, j, commands[i][j]);
-                        }
-                        ++j;
-                    }
-                    ++i;
-                }
-                */
-
+                Commands commands;
+                parse_commands(cmd_entry, commands);
                 do_commands(commands);
             }
         } else if (feof(stdin)) {
@@ -202,7 +152,47 @@ void split(char* string, char** string_array, char* delim) {
     *string_array = NULL;
 }
 
-void parse_commands(char** args, char* cmd_entry) {
+void parse_commands(char cmd_entry[MAX_COMMAND_ENTRY], Commands commands) {
+    int i = 0;
+    int j = 0;
+    int k = 0;
+    char* cmd_args[MAX_ARGUMENTS];
+
+    while (i < MAX_ARGUMENTS) {
+        j = 0;
+        while (j < MAX_ARGUMENTS) {
+            k = 0;
+            while (k < MAX_ARGUMENTS) {
+                commands[i][j][k] = '\0';
+                ++k;
+            }
+            ++j;
+        }
+        ++i;
+    }
+
+    split(cmd_entry, cmd_args, "|");
+
+    i = 0;
+    while(cmd_args[i] != NULL){
+        ++i;
+    }
+
+    i = 0;
+    while(cmd_args[i] != NULL){
+        char* tmp[MAX_ARGUMENTS];
+        _parse_commands(tmp, cmd_args[i]);
+        j = 0;
+        while(tmp[j] != NULL) {
+            strcpy(commands[i][j], tmp[j]);
+            escape_string(commands[i][j]);
+            j++;
+        }
+        i++;
+    }
+}
+
+void _parse_commands(char** args, char* cmd_entry) {
     /* Command entry string */
     char *p = cmd_entry;
 
@@ -270,12 +260,10 @@ void escape_string(char str[MAX_COMMAND_ENTRY]) {
     *dst = '\0';
 }
 
-void do_commands(char commands[MAX_ARGUMENTS][MAX_ARGUMENTS][MAX_COMMAND_ENTRY]) {
+void do_commands(Commands commands) {
     int i = 0;
-    int j = 0;
     int length = 0;
-    /* [['l', 's'], ['-', 'a'], ['&']] */
-    char (*cmd_one)[MAX_COMMAND_ENTRY] = commands[0];
+    Command cmd_one = commands[0];
 
     /* Check for background process  */
     i = 0;
@@ -296,7 +284,7 @@ void do_commands(char commands[MAX_ARGUMENTS][MAX_ARGUMENTS][MAX_COMMAND_ENTRY])
         printf("%s\n", "Exit");
         sah_exit();
     } else if (strcmp("cd", cmd_one[0]) == 0) {
-        sah_cd(cmd_one[1]);
+        sah_cd(cmd_one);
     } else if (strcmp("checkEnv", cmd_one[0]) == 0) {
         sah_check_env(commands);
     } else {
@@ -315,7 +303,7 @@ char* get_pager(char** pager) {
     return *pager;
 }
 
-void sah_check_env(char commands[MAX_ARGUMENTS][MAX_ARGUMENTS][MAX_COMMAND_ENTRY]) {
+void sah_check_env(Commands commands) {
     char* pager = NULL;
     int i = 0;
 
@@ -341,13 +329,16 @@ void sah_check_env(char commands[MAX_ARGUMENTS][MAX_ARGUMENTS][MAX_COMMAND_ENTRY
     sah_start_processes(commands);
 }
 
-void sah_start_background_process(char (*command)[MAX_COMMAND_ENTRY]) {
+void sah_start_background_process(Command command) {
     char process_path[MAX_PATH_LENGTH];
     char* process;
     int pid;
 
     process = command[0];
-    get_process_path(process_path, process);
+    if(!get_process_path(process_path, process)){
+        printf("Could not found process %s\n", process);
+        return;
+    }
 
     pid = fork();
     check(pid == -1, FORK_ERR);
@@ -359,27 +350,34 @@ void sah_start_background_process(char (*command)[MAX_COMMAND_ENTRY]) {
     printf("PID: %d\n", pid);
 }
 
-void sah_start_processes(char commands[MAX_ARGUMENTS][MAX_ARGUMENTS][MAX_COMMAND_ENTRY]) {
+void sah_start_processes(Commands commands) {
     int count = 0;
     int pid1 = 0;
     struct timeval before, after;
     check(gettimeofday(&before, NULL) == -1, TIME_ERR);
 
-    /* */
     while (**commands[count] != '\0') count++;
+
+    if(!get_process_path(process_path, command[0])){
+        printf("Could not found process %s\n", command[0]);
+        return;
+    }
 
     pid1 = fork();
     check(pid1 == -1, FORK_ERR);
     if (pid1 == 0) {
         int i = 0;
         while (**commands[i] != '\0') {
-            char (*command)[MAX_COMMAND_ENTRY] = commands[i];
+            Command command = commands[i];
             char process_path[MAX_PATH_LENGTH];
             int stdout_fd[2];
 
             check(pipe(stdout_fd) == -1, PIPE_ERR);
 
-            get_process_path(process_path, command[0]);
+            if(!get_process_path(process_path, command[0])){
+                printf("Could not found process %s\n", command[0]);
+                return;
+            }
 
             if (i < count - 1) {
                 int pid = fork();
@@ -411,13 +409,11 @@ void sah_start_processes(char commands[MAX_ARGUMENTS][MAX_ARGUMENTS][MAX_COMMAND
     /* Clear SIGINT signal */
     check(signal(SIGINT, SIG_DFL) == SIG_ERR, SIGNAL_ERR);
 
-    #ifndef __MACH__
     check(gettimeofday(&after, NULL) == -1, TIME_ERR);
     print_exec_time(before, after);
-    #endif
 }
 
-void execute(char* process_path, char (*command)[MAX_COMMAND_ENTRY]) {
+void execute(char* process_path, Command command) {
     char* cmd_args[MAX_ARGUMENTS];
     int i = 1;
     cmd_args[0] = process_path;
@@ -442,19 +438,15 @@ void sah_exit() {
     kill(-getpid(), SIGTERM);
 }
 
-void sah_cd(char** cmd_args) {
+void sah_cd(char (*cmd)[MAX_COMMAND_ENTRY]) {
     char* dir;
-    if (cmd_args[0] == NULL) {
-        dir = HOME_DIR;
-    } else if (cmd_args[0][0] == '~') {
-        char tmp[MAX_PATH_LENGTH];
-        strcpy(tmp, HOME_DIR);
-        dir = strcat(tmp, ++cmd_args[0]);
-    } else if (strcmp("-", cmd_args[0]) == 0) {
-        dir = PREVIOUS_DIR;
-    } else {
-        dir = cmd_args[0];
-    }
+    char tmp[MAX_PATH_LENGTH];
+    char* path = cmd[1];
+
+    dir = path[0] == '\0'        ? HOME_DIR :
+          path[0] == '~'         ? strcat(strcpy(tmp, HOME_DIR), ++path) :
+          strcmp(path, "-") == 0 ? PREVIOUS_DIR :
+          /* else */               path;
 
     if (chdir(dir) != 0) {
         printf("%s: %s\n", "Could not change to", dir);

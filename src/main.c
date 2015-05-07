@@ -35,21 +35,23 @@ void wait_for_children();
 char* create_dir_string(char* str, int index);
 char* get_pager(char** pager);
 
-void do_commands(char** cmd_args);
-void execute(char* process_path, char** command);
+void do_commands(char commands[MAX_ARGUMENTS][MAX_ARGUMENTS][MAX_COMMAND_ENTRY]);
+void execute(char* process_path, char (*command)[MAX_COMMAND_ENTRY]);
 void wait_for_children();
 
+void escape_string(char str[MAX_COMMAND_ENTRY]);
+void parse_commands(char** args, char* cmd_entry);
+
 /* Commands */
-void sah_check_env(char** cmd_args, char** cmd);
+void sah_check_env(char commands[MAX_ARGUMENTS][MAX_ARGUMENTS][MAX_COMMAND_ENTRY]);
 void sah_cd(char** cmd_args);
 void sah_exit();
-void sah_start_processes(char** cmd_args);
-void sah_start_background_process(char** cmd_args);
+void sah_start_processes(char commands[MAX_ARGUMENTS][MAX_ARGUMENTS][MAX_COMMAND_ENTRY]);
+void sah_start_background_process(char (*command)[MAX_COMMAND_ENTRY]);
 
 #define check(condition, msg) if(condition){ fprintf(stderr, "%s[l:%d]: ", __FILE__, __LINE__); perror(msg); sah_exit(); }
 
 /* System error messages */
-
 static char* SIGNAL_ERR      = "Failed to register signal handler";
 static char* HOME_ENV_ERR    = "Could not get HOME env";
 static char* PATH_ENV_ERR    = "Could not get PATH env";
@@ -106,12 +108,65 @@ int main(int argc, char** argv, char** envp) {
             int ln = strlen(cmd_entry) - 1;
             if (cmd_entry[ln] == '\n') cmd_entry[ln] = '\0';
 
+            /* */
             if (strlen(cmd_entry) > 0) {
+                int i = 0;
+                int j = 0;
+                int k = 0;
                 char* cmd_args[MAX_ARGUMENTS];
-                char cp[MAX_PATH_LENGTH];
-                strcpy(cp, cmd_entry);
-                split(cp, cmd_args, "|");
-                do_commands(cmd_args);
+
+                char commands[MAX_ARGUMENTS][MAX_ARGUMENTS][MAX_COMMAND_ENTRY];
+
+                while (i < MAX_ARGUMENTS) {
+                    j = 0;
+                    while (j < MAX_ARGUMENTS) {
+                        k = 0;
+                        while (k < MAX_ARGUMENTS) {
+                            commands[i][j][k] = '\0';
+                            ++k;
+                        }
+                        ++j;
+                    }
+                    ++i;
+                }
+
+                split(cmd_entry, cmd_args, "|");
+
+                i = 0;
+                while(cmd_args[i] != NULL){
+                    printf("[%s]\n", cmd_args[i]);
+                    ++i;
+                }
+
+                i = 0;
+                while(cmd_args[i] != NULL){
+                    char* tmp[MAX_ARGUMENTS];
+                    parse_commands(tmp, cmd_args[i]);
+                    j = 0;
+                    while(tmp[j] != NULL) {
+                        strcpy(commands[i][j], tmp[j]);
+                        escape_string(commands[i][j]);
+                        j++;
+                    }
+                    i++;
+                }
+
+
+                /*
+                i = 0;
+                while (i < MAX_ARGUMENTS) {
+                    j = 0;
+                    while (j < MAX_ARGUMENTS) {
+                        if(strlen(commands[i][j]) > 0) {
+                            printf("(%i, %i): %s\n", i, j, commands[i][j]);
+                        }
+                        ++j;
+                    }
+                    ++i;
+                }
+                */
+
+                do_commands(commands);
             }
         } else if (feof(stdin)) {
             exit(0);
@@ -147,35 +202,105 @@ void split(char* string, char** string_array, char* delim) {
     *string_array = NULL;
 }
 
-void do_commands(char** cmd_args) {
-    char cp[MAX_PATH_LENGTH];
-    char* cmd[MAX_ARGUMENTS];
-    int count = 0;
+void parse_commands(char** args, char* cmd_entry) {
+    /* Command entry string */
+    char *p = cmd_entry;
 
-    strcpy(cp, cmd_args[0]);
-    split(cp, cmd, " ");
+    /* Loop until end of entry string */
+    while(*p != '\0') {
 
-    while (cmd[count] != NULL) count++;
+        /* Increment pointer to beginning of argument */
+        while(*p == ' ' || *p == '\n') {
+            *p = '\0'; /* End of argument */
+            p++;
+        }
 
-    if (strcmp("&", cmd[count - 1]) == 0) {
-        cmd[count - 1] = NULL;
-        sah_start_background_process(cmd);
+        /* Special cases */
+        if (*p == '"') {
+            p++;
+            *args = p;
+            while (*p != '"' && *p != '\0') {
+                p++;
+            }
+            *p = '\0';
+            p++;
+        } else if (*p == '\'') {
+            p++;
+            *args = p;
+            while (*p != '\'' && *p != '\0') {
+                p++;
+            }
+            *p = '\0';
+            p++;
+        } else {
+            /* Set arg pointer to beginning of argument */
+            *args = p;
+        }
+
+        /* Increment pointer to end of argument */
+        while (*p != ' ' && *p != '\0' && *p != '\n') {
+            if (*p == '\\') {
+                p++;
+            }
+            p++;
+        }
+
+        /* Increment argument */
+        args++;
+
+    }
+    *args = NULL;
+}
+
+void escape_string(char str[MAX_COMMAND_ENTRY]) {
+    char *src = str;
+    char *dst = str;
+    while(*src != '\0') {
+        *dst = *src;
+        if(*dst != '\\'){
+            dst++;
+        }else{
+            if(*(dst + 1) == '\\'){
+                src++;
+                dst++;
+            }
+        }
+        src++;
+    }
+    *dst = '\0';
+}
+
+void do_commands(char commands[MAX_ARGUMENTS][MAX_ARGUMENTS][MAX_COMMAND_ENTRY]) {
+    int i = 0;
+    int j = 0;
+    int length = 0;
+    /* [['l', 's'], ['-', 'a'], ['&']] */
+    char (*cmd_one)[MAX_COMMAND_ENTRY] = commands[0];
+
+    /* Check for background process  */
+    i = 0;
+    while(*cmd_one[i] != '\0') {
+        ++i;
+    }
+    --i;
+    length = strlen(cmd_one[i]);
+
+    /* Check if the last char is an & */
+    if(cmd_one[i][length-1] == '&') {
+        cmd_one[i][length-1] = '\0';
+        sah_start_background_process(cmd_one);
         return;
     }
 
-
-    if (strcmp("exit", cmd[0]) == 0 || strcmp("quit", cmd[0]) == 0) {
+    if (strcmp("exit", cmd_one[0]) == 0 || strcmp("quit", cmd_one[0]) == 0) {
         printf("%s\n", "Exit");
         sah_exit();
-    } else if (strcmp("cd", cmd[0]) == 0) {
-        sah_cd(cmd + 1);
-    } else if (strcmp("cd..", cmd[0]) == 0) {
-        char* s = "..";
-        sah_cd(&s);
-    } else if (strcmp("checkEnv", cmd[0]) == 0) {
-        sah_check_env(cmd_args, cmd);
+    } else if (strcmp("cd", cmd_one[0]) == 0) {
+        sah_cd(cmd_one[1]);
+    } else if (strcmp("checkEnv", cmd_one[0]) == 0) {
+        sah_check_env(commands);
     } else {
-        sah_start_processes(cmd_args);
+        sah_start_processes(commands);
     }
 }
 
@@ -190,34 +315,38 @@ char* get_pager(char** pager) {
     return *pager;
 }
 
-void sah_check_env(char** cmd_args, char** cmd) {
-    char* cmds[MAX_ARGUMENTS];
-    char grep[MAX_PATH_LENGTH];
+void sah_check_env(char commands[MAX_ARGUMENTS][MAX_ARGUMENTS][MAX_COMMAND_ENTRY]) {
     char* pager = NULL;
     int i = 0;
-    cmds[i++] = "printenv";
-    if (cmd[1] != NULL) {
-        strcpy(grep, "grep ");
-        strcat(grep, cmd_args[0] + sizeof("checkEnv"));
-        cmds[i++] = grep;
+
+    strcpy(commands[i++][0], "printenv");
+
+    /* add grep */
+    if (*commands[0][1] != '\0') {
+        int j = 1;
+        while(*commands[0][j] != '\0') {
+            strcpy(commands[1][j], commands[0][j]);
+            *commands[0][j] = '\0';
+            j++;
+        }
+        strcpy(commands[i++][0], "grep");
     }
     if (get_pager(&pager) == NULL) {
         printf("Could not find pagers more or less.");
         return;
     }
-    cmds[i++] = "sort";
-    cmds[i++] = pager;
-    cmds[i] = NULL;
-    sah_start_processes(cmds);
+    strcpy(commands[i++][0], "sort");
+    strcpy(commands[i++][0], pager);
+
+    sah_start_processes(commands);
 }
 
-void sah_start_background_process(char** command) {
+void sah_start_background_process(char (*command)[MAX_COMMAND_ENTRY]) {
     char process_path[MAX_PATH_LENGTH];
     char* process;
     int pid;
 
     process = command[0];
-
     get_process_path(process_path, process);
 
     pid = fork();
@@ -230,34 +359,27 @@ void sah_start_background_process(char** command) {
     printf("PID: %d\n", pid);
 }
 
-void sah_start_processes(char** commands) {
+void sah_start_processes(char commands[MAX_ARGUMENTS][MAX_ARGUMENTS][MAX_COMMAND_ENTRY]) {
     int count = 0;
     int pid1 = 0;
-    #ifndef __MACH__
     struct timeval before, after;
-        check(gettimeofday(&before, NULL) == -1, TIME_ERR);
-    #endif
+    check(gettimeofday(&before, NULL) == -1, TIME_ERR);
 
-    while (commands[count] != NULL) count++;
+    /* */
+    while (**commands[count] != '\0') count++;
 
     pid1 = fork();
     check(pid1 == -1, FORK_ERR);
     if (pid1 == 0) {
         int i = 0;
-        while (commands[i] != NULL) {
-            char* command[MAX_ARGUMENTS];
-            char cp[MAX_PATH_LENGTH];
+        while (**commands[i] != '\0') {
+            char (*command)[MAX_COMMAND_ENTRY] = commands[i];
             char process_path[MAX_PATH_LENGTH];
-            char* process;
             int stdout_fd[2];
 
             check(pipe(stdout_fd) == -1, PIPE_ERR);
 
-            strcpy(cp, commands[i]);
-            split(cp, command, " ");
-            process = command[0];
-
-            get_process_path(process_path, process);
+            get_process_path(process_path, command[0]);
 
             if (i < count - 1) {
                 int pid = fork();
@@ -295,9 +417,16 @@ void sah_start_processes(char** commands) {
     #endif
 }
 
-void execute(char* process_path, char** command) {
-    command[0] = process_path;
-    if (execv(process_path, command) == -1) {
+void execute(char* process_path, char (*command)[MAX_COMMAND_ENTRY]) {
+    char* cmd_args[MAX_ARGUMENTS];
+    int i = 1;
+    cmd_args[0] = process_path;
+    while(*command[i] != '\0') {
+        cmd_args[i] = command[i];
+        i++;
+    }
+    cmd_args[i] = NULL;
+    if (execv(process_path, cmd_args) == -1) {
         printf("Could not execute program %s\n", process_path);
         sah_exit();
     }

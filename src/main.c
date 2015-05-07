@@ -1,8 +1,6 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <sys/wait.h>
-#include <sys/types.h>
 #include <sys/time.h>
 #include <unistd.h>
 #include <signal.h>
@@ -13,6 +11,7 @@
 #define MAX_PATH_LENGTH 4096
 #define MAX_ARGUMENTS 32
 
+typedef int bool;
 #define TRUE  1
 #define FALSE 0
 
@@ -30,19 +29,21 @@ void print_exec_time(struct timeval before, struct timeval after);
 void set_current_dir();
 void split(char* cmd_entry, char** cmd_args, char* delim);
 
-int starts_with_homedir(char* s);
-int file_exists(char* path);
-int get_process_path(char* process, char* cmd);
+bool starts_with_homedir(char* s);
+bool file_exists(char* path);
+bool get_process_path(char* process, char* cmd);
 void wait_for_children();
+
+void remove_char(char str[MAX_COMMAND_ENTRY], int index, size_t len);
 
 char* create_dir_string(char* str, int index);
 char* get_pager(char** pager);
 
+bool is_background_command(Command cmd);
 void do_commands(Commands commands);
 void execute(char* process_path, Command command);
 void wait_for_children();
 
-void escape_string(char str[MAX_COMMAND_ENTRY]);
 void parse_commands(char cmd_entry[MAX_COMMAND_ENTRY], Commands commands);
 void _parse_commands(char** args, char* cmd_entry);
 
@@ -76,12 +77,20 @@ static void sigchld_handler(int signo) {
         pid = waitpid(-1, &status, WNOHANG);
         check(pid == -1 && errno != ECHILD, WAIT_ERR);
         if(pid > 0){
-            fprintf(stderr, "\nProcess with id '%d' exited with status '%d' \n", pid, status);
+            printf("\nProcess with id '%d' exited with status '%d' \n", pid, status);
         }
     }while(pid > 0);
     signal(SIGCHLD, sigchld_handler);
 }
+#else
+void wait_for_children() {
+    int pid = 0, status = 0;
+    while((pid = waitpid(-1, &status, WNOHANG)) > 0){
+        fprintf(stderr, "Process with id '%d' exited with status '%d' \n", pid, status);
+    }
+}
 #endif
+
 
 char* HOME_DIR;
 char PREVIOUS_DIR[MAX_PATH_LENGTH];
@@ -109,10 +118,9 @@ int main(int argc, char** argv, char** envp) {
 
         if (fgets(cmd_entry, MAX_COMMAND_ENTRY, stdin) != NULL) {
             /* Remove trailing newline */
-            int ln = strlen(cmd_entry) - 1;
+            size_t ln = strlen(cmd_entry) - 1;
             if (cmd_entry[ln] == '\n') cmd_entry[ln] = '\0';
 
-            /* */
             if (strlen(cmd_entry) > 0) {
                 Commands commands;
                 parse_commands(cmd_entry, commands);
@@ -128,14 +136,7 @@ int main(int argc, char** argv, char** envp) {
     }
 }
 
-#ifndef SIGDET
-void wait_for_children() {
-    int pid = 0, status = 0;
-    while((pid = waitpid(-1, &status, WNOHANG)) > 0){
-        fprintf(stderr, "Process with id '%d' exited with status '%d' \n", pid, status);
-    }
-}
-#endif
+
 
 void set_current_dir() {
     check(getcwd(CURRENT_DIR, MAX_PATH_LENGTH) == NULL, WORKING_DIR_ERR);
@@ -175,17 +176,11 @@ void parse_commands(char cmd_entry[MAX_COMMAND_ENTRY], Commands commands) {
 
     i = 0;
     while(cmd_args[i] != NULL){
-        ++i;
-    }
-
-    i = 0;
-    while(cmd_args[i] != NULL){
         char* tmp[MAX_ARGUMENTS];
         _parse_commands(tmp, cmd_args[i]);
         j = 0;
         while(tmp[j] != NULL) {
             strcpy(commands[i][j], tmp[j]);
-            escape_string(commands[i][j]);
             j++;
         }
         i++;
@@ -195,87 +190,56 @@ void parse_commands(char cmd_entry[MAX_COMMAND_ENTRY], Commands commands) {
 void _parse_commands(char** args, char* cmd_entry) {
     /* Command entry string */
     char *p = cmd_entry;
+    int i = 0;
+    size_t len = strlen(cmd_entry);
 
     /* Loop until end of entry string */
-    while(*p != '\0') {
+    while(p[i] != '\0') {
 
         /* Increment pointer to beginning of argument */
-        while(*p == ' ' || *p == '\n') {
-            *p = '\0'; /* End of argument */
-            p++;
+        while(p[i] == ' ' || p[i] == '\n') {
+            p[i] = '\0'; /* End of argument */
+            i++;
         }
 
-        /* Special cases */
-        if (*p == '"') {
-            p++;
-            *args = p;
-            while (*p != '"' && *p != '\0') {
-                p++;
+        /* Handle qotes */
+        if (p[i] == '"' || p[i] == '\'') {
+            char quote_char = p[i];
+            i++;
+            *args = p + i;
+            while (p[i] != quote_char && p[i] != '\0') {
+                i++;
             }
-            *p = '\0';
-            p++;
-        } else if (*p == '\'') {
-            p++;
-            *args = p;
-            while (*p != '\'' && *p != '\0') {
-                p++;
-            }
-            *p = '\0';
-            p++;
+            p[i] = '\0';
+            i++;
         } else {
             /* Set arg pointer to beginning of argument */
-            *args = p;
+            *args = p + i;
         }
 
         /* Increment pointer to end of argument */
-        while (*p != ' ' && *p != '\0' && *p != '\n') {
-            if (*p == '\\') {
-                p++;
+        while (p[i] != ' ' && p[i] != '\0' && p[i] != '\n') {
+            if (p[i] == '\\') {
+                remove_char(cmd_entry, i, len);
+                len--;
+                i++; /* Leave escaped char */
             }
-            p++;
+            i++;
         }
-
-        /* Increment argument */
         args++;
-
     }
     *args = NULL;
 }
 
-void escape_string(char str[MAX_COMMAND_ENTRY]) {
-    char *src = str;
-    char *dst = str;
-    while(*src != '\0') {
-        *dst = *src;
-        if(*dst != '\\'){
-            dst++;
-        }else{
-            if(*(dst + 1) == '\\'){
-                src++;
-                dst++;
-            }
-        }
-        src++;
-    }
-    *dst = '\0';
+void remove_char(char str[MAX_COMMAND_ENTRY], int index, size_t len) {
+    memmove(&str[index], &str[index + 1], len - index);
 }
 
 void do_commands(Commands commands) {
-    int i = 0;
-    int length = 0;
     Command cmd_one = commands[0];
 
     /* Check for background process  */
-    i = 0;
-    while(*cmd_one[i] != '\0') {
-        ++i;
-    }
-    --i;
-    length = strlen(cmd_one[i]);
-
-    /* Check if the last char is an & */
-    if(cmd_one[i][length-1] == '&') {
-        cmd_one[i][length-1] = '\0';
+    if(is_background_command(cmd_one)){
         sah_start_background_process(cmd_one);
         return;
     }
@@ -290,6 +254,23 @@ void do_commands(Commands commands) {
     } else {
         sah_start_processes(commands);
     }
+}
+
+bool is_background_command(Command cmd){
+    int i = 0;
+    size_t length = 0;
+    while(*cmd[i] != '\0') {
+        ++i;
+    }
+    --i;
+    length = strlen(cmd[i]);
+
+    /* Check if the last char is an & */
+    if(cmd[i][length-1] == '&') {
+        cmd[i][length-1] = '\0';
+        return TRUE;
+    }
+    return FALSE;
 }
 
 char* get_pager(char** pager) {
@@ -309,7 +290,7 @@ void sah_check_env(Commands commands) {
 
     strcpy(commands[i++][0], "printenv");
 
-    /* add grep */
+    /* Add grep to command */
     if (*commands[0][1] != '\0') {
         int j = 1;
         while(*commands[0][j] != '\0') {
@@ -319,6 +300,8 @@ void sah_check_env(Commands commands) {
         }
         strcpy(commands[i++][0], "grep");
     }
+
+    /* Fetch pager from environment */
     if (get_pager(&pager) == NULL) {
         printf("Could not find pagers more or less.");
         return;
@@ -353,31 +336,35 @@ void sah_start_background_process(Command command) {
 void sah_start_processes(Commands commands) {
     int count = 0;
     int pid1 = 0;
+    int i = 0;
     struct timeval before, after;
-    check(gettimeofday(&before, NULL) == -1, TIME_ERR);
 
     while (**commands[count] != '\0') count++;
 
-    if(!get_process_path(process_path, command[0])){
-        printf("Could not found process %s\n", command[0]);
-        return;
+    while(i < count){
+        char process_path[MAX_PATH_LENGTH];
+        Command command = commands[i];
+        if(!get_process_path(process_path, command[0])){
+            printf("Could not found process %s\n", command[0]);
+            return;
+        }
+        i++;
     }
+
+    check(gettimeofday(&before, NULL) == -1, TIME_ERR);
 
     pid1 = fork();
     check(pid1 == -1, FORK_ERR);
     if (pid1 == 0) {
         int i = 0;
-        while (**commands[i] != '\0') {
+        while (i < count) {
             Command command = commands[i];
             char process_path[MAX_PATH_LENGTH];
             int stdout_fd[2];
 
             check(pipe(stdout_fd) == -1, PIPE_ERR);
 
-            if(!get_process_path(process_path, command[0])){
-                printf("Could not found process %s\n", command[0]);
-                return;
-            }
+            get_process_path(process_path, command[0]);
 
             if (i < count - 1) {
                 int pid = fork();
@@ -402,9 +389,8 @@ void sah_start_processes(Commands commands) {
     /* Ignore SIGINT */
     check(signal(SIGINT, SIG_IGN) == SIG_ERR, SIGNAL_ERR);
 
-    if(waitpid(pid1, NULL, 0) == -1 && errno != ECHILD){
-        perror(WAIT_ERR);
-    }
+    /* Wait for executed process  */
+    check(waitpid(pid1, NULL, 0) == -1 && errno != ECHILD, WAIT_ERR);
 
     /* Clear SIGINT signal */
     check(signal(SIGINT, SIG_DFL) == SIG_ERR, SIGNAL_ERR);
@@ -455,7 +441,7 @@ void sah_cd(char (*cmd)[MAX_COMMAND_ENTRY]) {
     }
 }
 
-int get_process_path(char* process_path, char* process) {
+bool get_process_path(char* process_path, char* process) {
     char* path_env;
     char* paths[MAX_ARGUMENTS];
     char cp[MAX_PATH_LENGTH];
@@ -472,22 +458,17 @@ int get_process_path(char* process_path, char* process) {
     strcpy(cp, path_env);
     split(cp, paths, ":");
     while (paths[i] != NULL) {
-        strcpy(process_path, paths[i]);
-        strcat(process_path, "/");
-        strcat(process_path, process);
+        sprintf(process_path, "%s/%s", paths[i], process);
         if (file_exists(process_path)) {
             return TRUE;
         }
         i++;
     }
 
-    /* Could not find a path, assign the process as path */
-    strcpy(process_path, process);
-
     return FALSE;
 }
 
-int file_exists(char* path) {
+bool file_exists(char* path) {
     return access(path, X_OK) == 0 ? TRUE : FALSE;
 }
 
@@ -508,12 +489,11 @@ void print_prompt() {
 }
 
 char* create_dir_string(char* str, int index) {
-    strcpy(str, "~");
-    strcat(str, CURRENT_DIR + index);
+    sprintf(str, "~%s", CURRENT_DIR + index);
     return str;
 }
 
-int starts_with_homedir(char* s) {
+bool starts_with_homedir(char* s) {
     int i = 0;
     while (s[i] == HOME_DIR[i]) {
         i++;

@@ -1,6 +1,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sys/wait.h>
 #include <sys/time.h>
 #include <unistd.h>
 #include <signal.h>
@@ -70,9 +71,21 @@ static char* CLOSE_ERR       = "Could not close pipe file descriptor";
 static char* WAIT_ERR        = "Error when waiting for child process";
 
 #ifdef SIGDET
+
+/**
+ * SIGCHLD signal handler.
+ *
+ * Preforms wait on the child to allow the system to release
+ * the resources associated with it.
+ * @return void Immediately if no child has exited.
+ */
 static void sigchld_handler(int signo) {
     int pid, status;
     assert(signo == SIGCHLD);
+
+    /* Listen to when a child process exits again */
+    signal(SIGCHLD, sigchld_handler);
+
     do{
         pid = waitpid(-1, &status, WNOHANG);
         check(pid == -1 && errno != ECHILD, WAIT_ERR);
@@ -80,9 +93,15 @@ static void sigchld_handler(int signo) {
             printf("\nProcess with id '%d' exited with status '%d' \n", pid, status);
         }
     }while(pid > 0);
-    signal(SIGCHLD, sigchld_handler);
 }
 #else
+
+/**
+ * Preforms wait on all child process to allow the system to release the
+ * resources associated with them.
+ *
+ * @return void Iimmediately if no child has exited.
+ */
 void wait_for_children() {
     int pid = 0, status = 0;
     while((pid = waitpid(-1, &status, WNOHANG)) > 0){
@@ -92,73 +111,107 @@ void wait_for_children() {
 #endif
 
 
-char* HOME_DIR;
-char PREVIOUS_DIR[MAX_PATH_LENGTH];
-char CURRENT_DIR[MAX_PATH_LENGTH];
+char* HOME_DIR;                     /* The home directory path */
+char PREVIOUS_DIR[MAX_PATH_LENGTH]; /* The previous directory path */
+char CURRENT_DIR[MAX_PATH_LENGTH];  /* The current directory path */
 
+
+/**
+ * The main procedure:
+ *  - reads user input
+ *  - executes commands
+*/
 int main(int argc, char** argv, char** envp) {
 
+    /* Ignore interactive stop and termination signal */
     check(signal(SIGTSTP, SIG_IGN) == SIG_ERR, SIGNAL_ERR);
     check(signal(SIGTERM, SIG_IGN) == SIG_ERR, SIGNAL_ERR);
 
 #ifdef SIGDET
+    /* Listen to when a child process exits */
     check(signal(SIGCHLD, sigchld_handler) == SIG_ERR, SIGNAL_ERR);
 #endif
 
-
+    /* Get the home directory path */
     HOME_DIR = getenv("HOME");
     check(HOME_DIR == NULL, HOME_ENV_ERR);
 
+    /* Get the current directory and assign it as previous directory */
+    set_current_dir();
     strcpy(PREVIOUS_DIR, CURRENT_DIR);
-    while (TRUE) {
-        char cmd_entry[MAX_COMMAND_ENTRY];
 
+    while (TRUE) {
+        char cmd_entry[MAX_COMMAND_ENTRY]; /* The current command line entry */
+
+        /* Assign current directory and print shell prompt */
         set_current_dir();
         print_prompt();
 
+        /* Read stdin input */
         if (fgets(cmd_entry, MAX_COMMAND_ENTRY, stdin) != NULL) {
-            /* Remove trailing newline */
+            /* Remove trailing newline from stdin input */
             size_t ln = strlen(cmd_entry) - 1;
             if (cmd_entry[ln] == '\n') cmd_entry[ln] = '\0';
 
+            /* Parse and do commands if any input */
             if (strlen(cmd_entry) > 0) {
                 Commands commands;
                 parse_commands(cmd_entry, commands);
                 do_commands(commands);
             }
         } else if (feof(stdin)) {
+            fprintf(stderr, "Could not read from stdin, exiting");
             exit(0);
         }
 
 #ifndef SIGDET
+        /* Wait for and terminate children */
         wait_for_children();
 #endif
     }
 }
 
-
-
+/**
+ * Sets the CURRENT_DIR variable to the current directory path.
+ */
 void set_current_dir() {
     check(getcwd(CURRENT_DIR, MAX_PATH_LENGTH) == NULL, WORKING_DIR_ERR);
 }
 
-void split(char* string, char** string_array, char* delim) {
+
+/**
+ * Splits the given string on the delimiters specified.
+ *
+ * @param string The string to be split and modified.
+ * @param string_array An array of char pointers that will contain the string parts.
+ * @param delimiters The delimiter characters.
+ * @return void
+ */
+void split(char* string, char** string_array, char* delimiters) {
     char* token;
-    token = strtok(string, delim);
+    token = strtok(string, delimiters);
     while (token != NULL) {
         *string_array = token;
         string_array++;
-        token = strtok(NULL, delim);
+        token = strtok(NULL, delimiters);
     }
     *string_array = NULL;
 }
 
+/**
+ * Parses a command line entry and stores the given Commands parameter.
+ *
+ * @param cmd_entry The command line entry.
+ * @param commands The parsed commands.
+ * @return void
+ */
 void parse_commands(char cmd_entry[MAX_COMMAND_ENTRY], Commands commands) {
     int i = 0;
     int j = 0;
     int k = 0;
     char* cmd_args[MAX_ARGUMENTS];
 
+    /* Initialize string matrix contain only null characters */
     while (i < MAX_ARGUMENTS) {
         j = 0;
         while (j < MAX_ARGUMENTS) {
@@ -172,21 +225,41 @@ void parse_commands(char cmd_entry[MAX_COMMAND_ENTRY], Commands commands) {
         ++i;
     }
 
+    /* Split command line entry on pipe char
+     * - cmd_entry = "foo | bar"
+     * - cmd_args = ["foo", "bar"]
+     */
     split(cmd_entry, cmd_args, "|");
 
+    /* Loop through each argument and parse it */
     i = 0;
     while(cmd_args[i] != NULL){
-        char* tmp[MAX_ARGUMENTS];
-        _parse_commands(tmp, cmd_args[i]);
+        char* args[MAX_ARGUMENTS];
+        /* Parse argument
+         * - cmd_args[i] = "ls -a"
+         * - tmp = ["ls", "-a"]
+         */
+        _parse_commands(args, cmd_args[i]);
         j = 0;
-        while(tmp[j] != NULL) {
-            strcpy(commands[i][j], tmp[j]);
+        while(args[j] != NULL) {
+            /* Copy to commands */
+            strcpy(commands[i][j], args[j]);
             j++;
         }
         i++;
     }
 }
 
+/**
+ * Helper function to parse_commands.
+ *
+ * Given entry 'grep "foo bar" &' will be parsed to
+ * ["grep", "\"foo bar\"", "&"]
+ *
+ * @param args An array of the parsed arguments.
+ * @param cmd_entry The command line entry to be parsed.
+ * @return void
+ */
 void _parse_commands(char** args, char* cmd_entry) {
     /* Command entry string */
     char *p = cmd_entry;
@@ -202,7 +275,7 @@ void _parse_commands(char** args, char* cmd_entry) {
             i++;
         }
 
-        /* Handle qotes */
+        /* Handle quotes */
         if (p[i] == '"' || p[i] == '\'') {
             char quote_char = p[i];
             i++;
@@ -213,7 +286,7 @@ void _parse_commands(char** args, char* cmd_entry) {
             p[i] = '\0';
             i++;
         } else {
-            /* Set arg pointer to beginning of argument */
+            /* Set args pointer to beginning of argument */
             *args = p + i;
         }
 
@@ -231,10 +304,24 @@ void _parse_commands(char** args, char* cmd_entry) {
     *args = NULL;
 }
 
+/**
+ * Removes an character from a string.
+ *
+ * @param str The string.
+ * @param index The index of str to be removed.
+ * @param len Length of he string.
+ * @return void
+ */
 void remove_char(char str[MAX_COMMAND_ENTRY], int index, size_t len) {
     memmove(&str[index], &str[index + 1], len - index);
 }
 
+/**
+ * Executes commands.
+ *
+ * @param commands The commands to be executed.
+ * @return void
+ */
 void do_commands(Commands commands) {
     Command cmd_one = commands[0];
 
@@ -256,6 +343,12 @@ void do_commands(Commands commands) {
     }
 }
 
+/**
+ * Checks if the commands contains a background process.
+ *
+ * @param commands The commands.
+ * @return bool TRUE if background command otherwise FALSE.
+ */
 bool is_background_command(Command cmd){
     int i = 0;
     size_t length = 0;

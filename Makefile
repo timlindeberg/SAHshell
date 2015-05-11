@@ -1,7 +1,9 @@
 FLAGS = -pedantic -Wall -ansi -O3 -DSIGDET=1
-FILES = src/main.c
+
+SOURCE = src/Parsing.c src/SAHCommands.c src/SAHShell.c
+HEADERS = src/Parsing.h src/SAHCommands.h src/SAHShell.h src/Globals.h
 
 all: bin/Main.out
 
-bin/Main.out: $(FILES)
-	gcc $(FILES) -o bin/Main.out $(FLAGS)
+bin/Main.out: $(SOURCE) $(HEADERS)
+	gcc $(SOURCE) -o bin/Main.out $(FLAGS)

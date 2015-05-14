@@ -10,7 +10,7 @@ void sah_check_env(Commands commands) {
     if (*commands[0][1] != '\0') {
         int j = 1;
         while(*commands[0][j] != '\0') {
-            strcpy(commands[1][j], commands[0][j]);
+            strncpy(commands[1][j], commands[0][j], MAX_COMMAND_ENTRY);
             *commands[0][j] = '\0';
             j++;
         }
@@ -23,7 +23,7 @@ void sah_check_env(Commands commands) {
         return;
     }
     strcpy(commands[i++][0], "sort");
-    strcpy(commands[i++][0], pager);
+    strncpy(commands[i++][0], pager, MAX_COMMAND_ENTRY);
 
     sah_start_processes(commands);
 }
@@ -34,14 +34,14 @@ void sah_cd(Command command) {
     char* path = command[1];
 
     dir = path[0] == '\0'        ? HOME_DIR :
-          path[0] == '~'         ? strcat(strcpy(tmp, HOME_DIR), ++path) :
+          path[0] == '~'         ? strcat(strncpy(tmp, HOME_DIR, MAX_COMMAND_ENTRY), ++path) :
           strcmp(path, "-") == 0 ? PREVIOUS_DIR :
           /* else */               path;
 
     if (chdir(dir) != 0) {
         printf("%s: %s\n", "Could not change to", dir);
     } else {
-        strcpy(PREVIOUS_DIR, CURRENT_DIR);
+        strncpy(PREVIOUS_DIR, CURRENT_DIR, MAX_PATH_LENGTH);
     }
 }
 
@@ -169,17 +169,17 @@ bool get_process_path(char* process_path, char* process) {
     int i = 0;
 
     if (file_is_executable(process)){
-        strcpy(process_path, process);
+        strncpy(process_path, process, MAX_PATH_LENGTH);
         return TRUE;
     }
 
     path_env = getenv("PATH");
     check(path_env == NULL, PATH_ENV_ERR);
 
-    strcpy(cp, path_env);
+    strncpy(cp, path_env, MAX_PATH_LENGTH);
     split(cp, paths, ":");
     while (paths[i] != NULL) {
-        sprintf(process_path, "%s/%s", paths[i], process);
+        snprintf(process_path, MAX_PATH_LENGTH, "%s/%s", paths[i], process);
         if (file_is_executable(process_path)) {
             return TRUE;
         }

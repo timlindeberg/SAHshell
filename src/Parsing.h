@@ -4,6 +4,7 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <glob.h>
+#include <wordexp.h>
 #include <string.h>
 #include "Globals.h"
 

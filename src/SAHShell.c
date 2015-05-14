@@ -16,7 +16,7 @@ int main(int argc, char** argv, char** envp) {
 
     /* Get the current directory and assign it as previous directory */
     set_current_dir();
-    strcpy(PREVIOUS_DIR, CURRENT_DIR);
+    strncpy(PREVIOUS_DIR, CURRENT_DIR, MAX_PATH_LENGTH);
 
     while (TRUE) {
         char cmd_entry[MAX_COMMAND_ENTRY]; /* The current command line entry */
@@ -120,7 +120,7 @@ char* create_dir_string(char* str) {
         return CURRENT_DIR;
     }
 
-    sprintf(str, "~%s", CURRENT_DIR + index);
+    snprintf(str, MAX_PATH_LENGTH, "~%s", CURRENT_DIR + index);
     return str;
 }
 

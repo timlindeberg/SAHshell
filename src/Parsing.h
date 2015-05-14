@@ -2,11 +2,11 @@
 #define SAHSHELL_PARSING_H
 
 #include <stdlib.h>
+#include <stdio.h>
+#include <glob.h>
 #include <string.h>
 
-#define MAX_COMMAND_ENTRY 80
-#define MAX_PATH_LENGTH 4096
-#define MAX_ARGUMENTS 32
+#include "Globals.h"
 
 /* Type definitions for the structure of commands. */
 typedef char Commands[MAX_ARGUMENTS][MAX_ARGUMENTS][MAX_COMMAND_ENTRY];
@@ -29,9 +29,10 @@ void parse_commands(char cmd_entry[MAX_COMMAND_ENTRY], Commands commands);
  *
  * @param args An array of the parsed arguments.
  * @param cmd_entry The command line entry to be parsed.
+ * @param escaped An array which will indicate which arguments were escaped on exit
  * @return void
  */
-void _parse_commands(char** args, char* cmd_entry);
+void parse_args(char** args, char* cmd_entry, bool escaped[MAX_ARGUMENTS]);
 
 /**
  * Splits the given string on the delimiters specified.
@@ -52,5 +53,11 @@ void split(char* cmd_entry, char** cmd_args, char* delim);
  * @return void
  */
 void remove_char(char str[MAX_COMMAND_ENTRY], int index, size_t len);
+
+/**
+ * Debug function used to print the parsed commands.
+ * @param commands The commands to print.
+ */
+void print_commands(Commands commands);
 
 #endif /* SAHSHELL_PARSING_H */

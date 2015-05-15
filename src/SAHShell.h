@@ -47,19 +47,20 @@ void set_current_dir();
 void print_prompt();
 
 /**
- * Checks wether the the string starts with the home directory.
- * @return the index at which the string s starts to differ
- * from HOME_DIR.
- */
-int starts_with_homedir(char* s);
-
-/**
  * Creates a string describing the current directory where
  * the home directory is replaced by '~'.
  * @param str the string buffer to be filled
  * @return returns str
  */
 char* create_dir_string(char* str);
+
+/**
+ * Checks wether the the string starts with the home directory.
+ * @return the index at which the string s starts to differ
+ * from HOME_DIR.
+ */
+int starts_with_homedir(char* s);
+
 
 /**
  * Signal handling. If SIGDET is defined the shell we handle the

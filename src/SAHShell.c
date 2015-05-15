@@ -10,6 +10,7 @@ int main(int argc, char** argv, char** envp) {
     check(signal(SIGCHLD, sigchld_handler) == SIG_ERR, SIGNAL_ERR);
 #endif /* SIGDET */
 
+
     /* Get the home directory path */
     HOME_DIR = getenv("HOME");
     check(HOME_DIR == NULL, HOME_ENV_ERR);
@@ -34,7 +35,15 @@ int main(int argc, char** argv, char** envp) {
             /* Parse and do commands if any input */
             if (strlen(cmd_entry) > 0) {
                 Commands commands;
+#if SIGDET && __MACH__
+                /* Workaround since wordexp(3) is bugged on mac and crashes when SIGCHLD is handled.
+                 * To resolve it we temporarily set the signal handler of SIGCHLD to default.*/
+                check(signal(SIGCHLD, SIG_DFL) == SIG_ERR, SIGNAL_ERR);
                 parse_commands(cmd_entry, commands);
+                check(signal(SIGCHLD, sigchld_handler) == SIG_ERR, SIGNAL_ERR);
+#else
+                parse_commands(cmd_entry, commands);
+#endif
                 execute_commands(commands);
             }
         } else if (feof(stdin)) {
@@ -103,6 +112,16 @@ void print_prompt() {
     printf("\x1b[34m%s\x1b[0m: \x1b[1m%s\x1b[0m \x1b[32m $ \x1b[0m", name, dir);
 }
 
+char* create_dir_string(char* str) {
+    int index = starts_with_homedir(CURRENT_DIR);
+    if(index == -1){
+        return CURRENT_DIR;
+    }
+
+    snprintf(str, MAX_PATH_LENGTH, "~%s", CURRENT_DIR + index);
+    return str;
+}
+
 int starts_with_homedir(char* s) {
     int i = 0;
     while (s[i] == HOME_DIR[i]) {
@@ -112,16 +131,6 @@ int starts_with_homedir(char* s) {
         }
     }
     return -1;
-}
-
-char* create_dir_string(char* str) {
-    int index = starts_with_homedir(CURRENT_DIR);
-    if(index == -1){
-        return CURRENT_DIR;
-    }
-
-    snprintf(str, MAX_PATH_LENGTH, "~%s", CURRENT_DIR + index);
-    return str;
 }
 
 #ifdef SIGDET

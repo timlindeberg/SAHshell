@@ -3,9 +3,9 @@
 
 #include <stdlib.h>
 #include <stdio.h>
-#include <glob.h>
 #include <wordexp.h>
 #include <string.h>
+
 #include "Globals.h"
 
 #define MAX_COMMAND_ENTRY 80
@@ -59,8 +59,23 @@ void split(char* cmd_entry, char** cmd_args, char* delim);
 void remove_char(char str[MAX_COMMAND_ENTRY], int index, size_t len);
 
 /**
+ * Sets all entries in commands to null.
+ * @param commands The commands structure to clear.
+ * @return void
+ */
+void clear_commands(Commands commands);
+
+/**
+ * Calculates the size of the given args array.
+ * @param args The array of arguments
+ * @return The size of args
+ */
+int get_arg_size(char* args[MAX_ARGUMENTS]);
+
+/**
  * Debug function used to print the parsed commands.
  * @param commands The commands to print
+ * @return void
  */
 void print_commands(Commands commands);
 

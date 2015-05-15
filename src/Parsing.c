@@ -1,24 +1,13 @@
+#include <wordexp.h>
 #include "Parsing.h"
 
-void parse_commands(char cmd_entry[MAX_COMMAND_ENTRY], Commands commands) {
-    int i = 0;
-    int j = 0;
-    int k = 0;
-    char* cmd_args[MAX_ARGUMENTS];
 
-    /* Initialize string matrix contain only null characters */
-    while (i < MAX_ARGUMENTS) {
-        j = 0;
-        while (j < MAX_ARGUMENTS) {
-            k = 0;
-            while (k < MAX_ARGUMENTS) {
-                commands[i][j][k] = '\0';
-                ++k;
-            }
-            ++j;
-        }
-        ++i;
-    }
+
+void parse_commands(char cmd_entry[MAX_COMMAND_ENTRY], Commands commands) {
+    char* cmd_args[MAX_ARGUMENTS];
+    int   i = 0;
+
+    clear_commands(commands);
 
     /* Split command line entry on pipe char
      * - cmd_entry = "foo | bar"
@@ -26,16 +15,16 @@ void parse_commands(char cmd_entry[MAX_COMMAND_ENTRY], Commands commands) {
      */
     split(cmd_entry, cmd_args, "|");
 
-    /* Loop through each argument and parse it */
-    i = 0;
+    /* Loop through each command and parse it */
     while(cmd_args[i] != NULL){
         char* args[MAX_ARGUMENTS];
-        bool escaped[MAX_ARGUMENTS];
-        int j = 0;
-        int k = 0;
-        int offset = 0;
+        bool  escaped[MAX_ARGUMENTS];
+        int   j = 0;
+        int   k = 0;
+        int   offset = 0;
+        int   arg_size = 0;
 
-        /* Set escaped array to false. */
+        /* Initiate escaped array to false. */
         while(k < MAX_ARGUMENTS) escaped[k++] = FALSE;
 
         /* Parse argument
@@ -44,24 +33,29 @@ void parse_commands(char cmd_entry[MAX_COMMAND_ENTRY], Commands commands) {
          */
         parse_args(args, cmd_args[i], escaped);
 
-        /* Copy all arguments to the commands structure */
-        while(args[j] != NULL) {
-            glob_t globbuf;
+        arg_size = get_arg_size(args);
+        if(arg_size == 0)
+            continue;
 
-            /* Glob arguments */
-            if(j > 0 && !escaped[j] && glob(args[j], 0, NULL, &globbuf) == 0){
+        /* Copy all arguments to the commands structure */
+        strncpy(commands[i][0], args[0], MAX_COMMAND_ENTRY);
+        j = 1;
+        while(j < arg_size) {
+            wordexp_t wordbuf;
+
+            /* Expand arguments using wordexp */
+            if(!escaped[j] && wordexp(args[j], &wordbuf, 0) == 0){
                 int k = 0;
-                while(k < globbuf.gl_pathc){
-                    strncpy(commands[i][j + offset + k], globbuf.gl_pathv[k], MAX_COMMAND_ENTRY);
+                while(k < wordbuf.we_wordc){
+                    strncpy(commands[i][j + offset + k], wordbuf.we_wordv[k], MAX_COMMAND_ENTRY);
                     k++;
                 }
                 offset += k - 1;
-                globfree(&globbuf);
+                wordfree(&wordbuf);
             }else{
-                /* Copy argument as is if it can't be globbed. */
+                /* Copy argument as is if it can't be expanded. */
                 strncpy(commands[i][j + offset], args[j], MAX_COMMAND_ENTRY);
             }
-
             j++;
         }
         i++;
@@ -127,6 +121,34 @@ void split(char* string, char** string_array, char* delimiters) {
 
 void remove_char(char str[MAX_COMMAND_ENTRY], int index, size_t len) {
     memmove(&str[index], &str[index + 1], len - index);
+}
+
+void clear_commands(Commands commands){
+    int i = 0;
+
+    while (i < MAX_ARGUMENTS) {
+        int j = 0;
+
+        while (j < MAX_ARGUMENTS) {
+            int k = 0;
+
+            while (k < MAX_ARGUMENTS) {
+                commands[i][j][k] = '\0';
+                ++k;
+            }
+            ++j;
+        }
+        ++i;
+    }
+}
+
+int get_arg_size(char* args[MAX_ARGUMENTS]){
+    int i = 0;
+    int arg_count = 0;
+
+    while(args[i++] != NULL) arg_count++;
+
+    return arg_count;
 }
 
 void print_commands(Commands commands){

@@ -126,7 +126,7 @@ void sah_start_background_process(Command command) {
 
     process = command[0];
     if (!get_process_path(process_path, process)) {
-        printf("Could not found process %s\n", process);
+        printf("Could not find process %s\n", process);
         return;
     }
 
@@ -194,6 +194,11 @@ bool get_process_path(char* process_path, char* process) {
 }
 
 bool file_is_executable(char* path) {
+    struct stat sb;
+    stat(path, &sb);
+    if((sb.st_mode & S_IFMT) == S_IFDIR){
+        return FALSE;
+    }
     return access(path, X_OK) == 0 ? TRUE : FALSE;
 }
 

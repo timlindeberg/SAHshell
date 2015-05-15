@@ -1,3 +1,4 @@
+#include <wordexp.h>
 #include "Parsing.h"
 
 void parse_commands(char cmd_entry[MAX_COMMAND_ENTRY], Commands commands) {
@@ -43,6 +44,7 @@ void parse_commands(char cmd_entry[MAX_COMMAND_ENTRY], Commands commands) {
             if (!escaped[j] && wordexp(args[j], &wordbuf, 0) == 0) {
                 int k = 0;
                 while(k < wordbuf.we_wordc && j + offset + k < MAX_ARGUMENTS){
+                    handle_escapes(wordbuf.we_wordv[k]);
                     strncpy(commands[i][j + offset + k], wordbuf.we_wordv[k], MAX_COMMAND_ENTRY);
                     k++;
                 }
@@ -50,9 +52,29 @@ void parse_commands(char cmd_entry[MAX_COMMAND_ENTRY], Commands commands) {
                 wordfree(&wordbuf);
             } else {
                 /* Copy argument as is if it can't be expanded. */
+                handle_escapes(args[j]);
                 strncpy(commands[i][j + offset], args[j], MAX_COMMAND_ENTRY);
             }
             j++;
+        }
+        i++;
+    }
+}
+
+void handle_escapes(char* str){
+    int i = 0;
+    int len = strlen(str);
+    while(str[i] != '\0'){
+        if(str[i] == '\\'){
+            switch(str[i + 1]){
+                case 'a': remove_char(str, i, len--); str[i] = '\a'; break;
+                case 'b': remove_char(str, i, len--); str[i] = '\b'; break;
+                case 'f': remove_char(str, i, len--); str[i] = '\f'; break;
+                case 'n': remove_char(str, i, len--); str[i] = '\n'; break;
+                case 'r': remove_char(str, i, len--); str[i] = '\r'; break;
+                case 't': remove_char(str, i, len--); str[i] = '\t'; break;
+                case 'v': remove_char(str, i, len--); str[i] = '\v'; break;
+            }
         }
         i++;
     }
@@ -135,6 +157,10 @@ int get_arg_size(char* args[MAX_ARGUMENTS]) {
     while (args[i++] != NULL) arg_count++;
 
     return arg_count;
+}
+
+void remove_char(char str[MAX_COMMAND_ENTRY], int index, size_t len) {
+    memmove(&str[index], &str[index + 1], len - index);
 }
 
 void print_commands(Commands commands) {

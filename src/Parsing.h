@@ -62,6 +62,10 @@ void clear_commands(Commands commands);
  */
 int get_arg_size(char* args[MAX_ARGUMENTS]);
 
+void handle_escapes(char* str);
+
+void remove_char(char str[MAX_COMMAND_ENTRY], int index, size_t len);
+
 /**
  * Debug function used to print the parsed commands.
  * @param commands The commands to print

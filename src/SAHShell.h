@@ -83,7 +83,7 @@ int starts_with_homedir(char* s);
  * the resources associated with it.
  * @return void Immediately if no child has exited.
  */
-static void sigchld_handler(int signo);
+void sigchld_handler(int signo);
 
 #else
 

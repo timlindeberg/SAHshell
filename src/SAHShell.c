@@ -4,7 +4,7 @@ int main(int argc, char** argv, char** envp) {
     /* Signal handling */
     check(signal(SIGTERM, sah_exit) == SIG_ERR, SIGNAL_ERR);
     check(signal(SIGINT, SIG_IGN) == SIG_ERR, SIGNAL_ERR);
-    check(signal(SIGSTP, SIG_IGN) == SIG_ERR, SIGNAL_ERR);
+    check(signal(SIGTSTP, SIG_IGN) == SIG_ERR, SIGNAL_ERR);
 
 #ifdef SIGDET
     /* Listen to when a child process exits */
@@ -133,7 +133,7 @@ int starts_with_homedir(char* s) {
 
 #ifdef SIGDET
 
-static void sigchld_handler(int signo) {
+void sigchld_handler(int signo) {
     int pid, status;
     assert(signo == SIGCHLD);
 

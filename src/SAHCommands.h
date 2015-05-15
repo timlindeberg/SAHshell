@@ -4,6 +4,8 @@
 #include <unistd.h>
 #include <stdio.h>
 #include <string.h>
+#include <signal.h>
+#include <sys/wait.h>
 #include <sys/time.h>
 #include <sys/errno.h>
 

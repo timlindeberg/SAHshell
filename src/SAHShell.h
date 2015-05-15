@@ -47,6 +47,13 @@ void set_current_dir();
 void print_prompt();
 
 /**
+ * Checks whether the the string starts with the home directory.
+ * @return the index at which the string s starts to differ
+ * from HOME_DIR.
+ */
+int starts_with_homedir(char* s);
+
+/**
  * Creates a string describing the current directory where
  * the home directory is replaced by '~'.
  * @param str the string buffer to be filled
@@ -84,7 +91,7 @@ static void sigchld_handler(int signo);
  * Preforms wait on all child process to allow the system to release the
  * resources associated with them.
  *
- * @return void Iimmediately if no child has exited.
+ * @return void Immediately if no child has exited.
  */
 void wait_for_children();
 

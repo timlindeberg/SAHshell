@@ -11,7 +11,7 @@ typedef int bool;
 
 /* Error handling. */
 
-#define check(condition, msg) if(condition){ fprintf(stderr, "%s[l:%d]: ", __FILE__, __LINE__); perror(msg); sah_exit(); }
+#define check(condition, msg) if(condition){ fprintf(stderr, "%s[l:%d]: ", __FILE__, __LINE__); perror(msg); sah_exit(1); }
 
 /* System error messages */
 extern const char* SIGNAL_ERR;

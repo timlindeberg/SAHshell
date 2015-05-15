@@ -1,4 +1,5 @@
 #include "SAHCommands.h"
+#include "SAHShell.h"
 
 void sah_check_env(Commands commands) {
     char* pager = NULL;
@@ -45,8 +46,12 @@ void sah_cd(Command command) {
     }
 }
 
-void sah_exit() {
-    kill(-getpid(), SIGTERM);
+void sah_exit(int status) {
+    #ifndef SIGDET
+    /* Wait for and terminate children */
+    wait_for_children();
+    #endif /* SIGDET */
+    exit(status);
 }
 
 void sah_start_processes(Commands commands) {
@@ -147,7 +152,7 @@ void execute(char* process_path, Command command) {
     cmd_args[i] = NULL;
     if (execv(process_path, cmd_args) == -1) {
         printf("Could not execute program %s\n", process_path);
-        sah_exit();
+        sah_exit(0);
     }
 }
 

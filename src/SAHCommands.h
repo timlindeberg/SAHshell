@@ -39,7 +39,7 @@ void sah_cd(Command command);
 /**
  * Exits the shell.
  */
-void sah_exit();
+void sah_exit(int status);
 
 /**
  * Executes the processes specified by the given commands.
@@ -102,10 +102,5 @@ bool file_is_executable(char* path);
  * @param after The end of the time to print.
  */
 void print_exec_time(struct timeval before, struct timeval after);
-
-/**
- * Weird definition to remove compiler warning.
- */
-int kill(int a, int b);
 
 #endif /* SAHSHELL_SAHCOMMANDS_H */

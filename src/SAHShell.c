@@ -1,16 +1,15 @@
 #include "SAHShell.h"
 
 int main(int argc, char** argv, char** envp) {
-    /* Ignore interactive stop and termination signal */
-    check(signal(SIGTSTP, SIG_IGN) == SIG_ERR, SIGNAL_ERR);
-    check(signal(SIGTERM, SIG_IGN) == SIG_ERR, SIGNAL_ERR);
+    /* Signal handling */
+    check(signal(SIGTERM, sah_exit) == SIG_ERR, SIGNAL_ERR);
     check(signal(SIGINT, SIG_IGN) == SIG_ERR, SIGNAL_ERR);
+    check(signal(SIGSTP, SIG_IGN) == SIG_ERR, SIGNAL_ERR);
 
 #ifdef SIGDET
     /* Listen to when a child process exits */
     check(signal(SIGCHLD, sigchld_handler) == SIG_ERR, SIGNAL_ERR);
 #endif /* SIGDET */
-
 
     /* Get the home directory path */
     HOME_DIR = getenv("HOME");
@@ -48,8 +47,7 @@ int main(int argc, char** argv, char** envp) {
                 execute_commands(commands);
             }
         } else if (feof(stdin)) {
-            fprintf(stderr, "Could not read from stdin, exiting");
-            exit(0);
+            sah_exit(0);
         }
 
 #ifndef SIGDET
@@ -69,8 +67,7 @@ void execute_commands(Commands commands) {
     }
 
     if (strcmp("exit", cmd_one[0]) == 0 || strcmp("quit", cmd_one[0]) == 0) {
-        printf("%s\n", "Exit");
-        sah_exit();
+        sah_exit(0);
     } else if (strcmp("cd", cmd_one[0]) == 0) {
         sah_cd(cmd_one);
     } else if (strcmp("checkEnv", cmd_one[0]) == 0) {
@@ -110,7 +107,7 @@ void print_prompt() {
     check(name == NULL, USER_ENV_ERR);
 
     /* Uses ANSI colors. */
-    printf("\x1b[34m%s\x1b[0m: \x1b[1m%s\x1b[0m \x1b[32m $ \x1b[0m", name, dir);
+    printf("\x1b[34m%s\x1b[0m: \x1b[1m%s\x1b[0m\x1b[32m $ \x1b[0m", name, dir);
 }
 
 char* create_dir_string(char* str) {
@@ -143,13 +140,13 @@ static void sigchld_handler(int signo) {
     /* Listen to when a child process exits again */
     signal(SIGCHLD, sigchld_handler);
 
-    do{
+    do {
         pid = waitpid(-1, &status, WNOHANG);
         check(pid == -1 && errno != ECHILD, WAIT_ERR);
         if(pid > 0){
             printf("\nProcess with id '%d' exited with status '%d' \n", pid, status);
         }
-    }while(pid > 0);
+    } while(pid > 0);
 }
 
 #else

@@ -97,5 +97,4 @@ void wait_for_children();
 
 #endif /* SIGDET */
 
-
 #endif /* SAHSHELL_SAHSHELL_H */

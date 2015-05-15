@@ -2,7 +2,7 @@
 
 void parse_commands(char cmd_entry[MAX_COMMAND_ENTRY], Commands commands) {
     char* cmd_args[MAX_ARGUMENTS];
-    int   i = 0;
+    int i = 0;
 
     clear_commands(commands);
 
@@ -13,43 +13,42 @@ void parse_commands(char cmd_entry[MAX_COMMAND_ENTRY], Commands commands) {
     split(cmd_entry, cmd_args, "|");
 
     /* Loop through each command and parse it */
-    while(cmd_args[i] != NULL){
+    while (cmd_args[i] != NULL) {
         char* args[MAX_ARGUMENTS];
-        bool  escaped[MAX_ARGUMENTS];
-        int   j = 0;
-        int   k = 0;
-        int   offset = 0;
-        int   arg_size = 0;
+        bool escaped[MAX_ARGUMENTS];
+        int j = 0;
+        int k = 0;
+        int offset = 0;
+        int arg_size = 0;
 
         /* Initiate escaped array to false. */
-        while(k < MAX_ARGUMENTS) escaped[k++] = FALSE;
+        while (k < MAX_ARGUMENTS) escaped[k++] = FALSE;
 
         /* Parse argument
          * - cmd_args[i] = "ls -a"
          * - tmp = ["ls", "-a"]
          */
         parse_args(args, cmd_args[i], escaped);
-
         arg_size = get_arg_size(args);
-        if(arg_size == 0)
+        if (arg_size == 0)
             continue;
 
         /* Copy all arguments to the commands structure */
         strncpy(commands[i][0], args[0], MAX_COMMAND_ENTRY);
         j = 1;
-        while(j < arg_size) {
+        while (j < arg_size) {
             wordexp_t wordbuf;
 
             /* Expand arguments using wordexp */
-            if(!escaped[j] && wordexp(args[j], &wordbuf, 0) == 0){
+            if (!escaped[j] && wordexp(args[j], &wordbuf, 0) == 0) {
                 int k = 0;
-                while(k < wordbuf.we_wordc){
+                while (k < wordbuf.we_wordc) {
                     strncpy(commands[i][j + offset + k], wordbuf.we_wordv[k], MAX_COMMAND_ENTRY);
                     k++;
                 }
                 offset += k - 1;
                 wordfree(&wordbuf);
-            }else{
+            } else {
                 /* Copy argument as is if it can't be expanded. */
                 strncpy(commands[i][j + offset], args[j], MAX_COMMAND_ENTRY);
             }
@@ -61,16 +60,15 @@ void parse_commands(char cmd_entry[MAX_COMMAND_ENTRY], Commands commands) {
 
 void parse_args(char** args, char* cmd_entry, bool escaped[MAX_ARGUMENTS]) {
     /* Command entry string */
-    char *p = cmd_entry;
+    char* p = cmd_entry;
     int i = 0;
-    int argCount = 0;
-    size_t len = strlen(cmd_entry);
+    int arg_count = 0;
 
     /* Loop until end of entry string */
-    while(p[i] != '\0') {
+    while (p[i] != '\0') {
 
         /* Increment pointer to beginning of argument */
-        while(p[i] == ' ' || p[i] == '\n') {
+        while (p[i] == ' ' || p[i] == '\n') {
             p[i] = '\0'; /* End of argument */
             i++;
         }
@@ -79,8 +77,8 @@ void parse_args(char** args, char* cmd_entry, bool escaped[MAX_ARGUMENTS]) {
         if (p[i] == '"' || p[i] == '\'') {
             char quote_char = p[i];
             i++;
-            *(args + argCount) = p + i;
-            escaped[argCount] = TRUE;
+            args[arg_count] = p + i;
+            escaped[arg_count] = TRUE;
             while (p[i] != quote_char && p[i] != '\0') {
                 i++;
             }
@@ -88,21 +86,15 @@ void parse_args(char** args, char* cmd_entry, bool escaped[MAX_ARGUMENTS]) {
             i++;
         } else {
             /* Set args pointer to beginning of argument */
-            *(args + argCount) = p + i;
+            args[arg_count] = p + i;
         }
-
         /* Increment pointer to end of argument */
         while (p[i] != ' ' && p[i] != '\0' && p[i] != '\n') {
-            if (p[i] == '\\') {
-                remove_char(cmd_entry, i, len);
-                len--;
-                i++; /* Leave escaped char */
-            }
             i++;
         }
-        argCount++;
+        arg_count++;
     }
-    *(args + argCount) = NULL;
+    args[arg_count] = NULL;
 }
 
 void split(char* string, char** string_array, char* delimiters) {
@@ -116,11 +108,7 @@ void split(char* string, char** string_array, char* delimiters) {
     *string_array = NULL;
 }
 
-void remove_char(char str[MAX_COMMAND_ENTRY], int index, size_t len) {
-    memmove(&str[index], &str[index + 1], len - index);
-}
-
-void clear_commands(Commands commands){
+void clear_commands(Commands commands) {
     int i = 0;
 
     while (i < MAX_ARGUMENTS) {
@@ -139,20 +127,20 @@ void clear_commands(Commands commands){
     }
 }
 
-int get_arg_size(char* args[MAX_ARGUMENTS]){
+int get_arg_size(char* args[MAX_ARGUMENTS]) {
     int i = 0;
     int arg_count = 0;
 
-    while(args[i++] != NULL) arg_count++;
+    while (args[i++] != NULL) arg_count++;
 
     return arg_count;
 }
 
-void print_commands(Commands commands){
+void print_commands(Commands commands) {
     int i = 0;
-    while(**commands[i] != '\0'){
+    while (**commands[i] != '\0') {
         int j = 0;
-        while(*commands[i][j] != '\0'){
+        while (*commands[i][j] != '\0') {
             printf("(%i, %i): %s\n", i, j, commands[i][j]);
             j++;
         }

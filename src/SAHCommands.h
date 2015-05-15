@@ -13,8 +13,10 @@
 #include "Globals.h"
 
 /* Global variables to keep track of the current working directory etc. */
-char* HOME_DIR;                     /* The home directory path */
-char PREVIOUS_DIR[MAX_PATH_LENGTH]; /* The previous directory path */
+char* HOME_DIR;
+/* The home directory path */
+char PREVIOUS_DIR[MAX_PATH_LENGTH];
+/* The previous directory path */
 char CURRENT_DIR[MAX_PATH_LENGTH];  /* The current directory path */
 
 /**

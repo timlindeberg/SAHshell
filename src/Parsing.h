@@ -14,7 +14,7 @@
 
 /* Type definitions for the structure of commands. */
 typedef char Commands[MAX_ARGUMENTS][MAX_ARGUMENTS][MAX_COMMAND_ENTRY];
-typedef char (*Command)[MAX_COMMAND_ENTRY];
+typedef char (* Command)[MAX_COMMAND_ENTRY];
 
 /**
  * Parses a command line entry and stores the given Commands parameter.
@@ -47,16 +47,6 @@ void parse_args(char** args, char* cmd_entry, bool escaped[MAX_ARGUMENTS]);
  * @return void
  */
 void split(char* cmd_entry, char** cmd_args, char* delim);
-
-/**
- * Removes an character from a string.
- *
- * @param str The string.
- * @param index The index of str to be removed.
- * @param len Length of he string.
- * @return void
- */
-void remove_char(char str[MAX_COMMAND_ENTRY], int index, size_t len);
 
 /**
  * Sets all entries in commands to null.

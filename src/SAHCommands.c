@@ -10,7 +10,7 @@ void sah_check_env(Commands commands) {
     /* Add grep to command */
     if (*commands[0][1] != '\0') {
         int j = 1;
-        while(*commands[0][j] != '\0') {
+        while (*commands[0][j] != '\0') {
             strncpy(commands[1][j], commands[0][j], MAX_COMMAND_ENTRY);
             *commands[0][j] = '\0';
             j++;
@@ -47,10 +47,10 @@ void sah_cd(Command command) {
 }
 
 void sah_exit(int status) {
-    #ifndef SIGDET
+#ifndef SIGDET
     /* Wait for and terminate children */
     wait_for_children();
-    #endif /* SIGDET */
+#endif /* SIGDET */
     exit(status);
 }
 
@@ -62,10 +62,10 @@ void sah_start_processes(Commands commands) {
 
     while (**commands[count] != '\0') count++;
 
-    while(i < count){
+    while (i < count) {
         char process_path[MAX_PATH_LENGTH];
         Command command = commands[i];
-        if(!get_process_path(process_path, command[0])){
+        if (!get_process_path(process_path, command[0])) {
             printf("Could not found process %s\n", command[0]);
             return;
         }
@@ -103,7 +103,7 @@ void sah_start_processes(Commands commands) {
                 }
 
                 check(dup2(stdout_fd[READ], STDIN_FILENO) == -1, DUP_ERR);
-                check(close(stdout_fd[WRITE]) == -1 , CLOSE_ERR);
+                check(close(stdout_fd[WRITE]) == -1, CLOSE_ERR);
             } else {
                 /* Use this fork for last process. */
                 execute(process_path, command);
@@ -125,7 +125,7 @@ void sah_start_background_process(Command command) {
     int pid;
 
     process = command[0];
-    if(!get_process_path(process_path, process)){
+    if (!get_process_path(process_path, process)) {
         printf("Could not found process %s\n", process);
         return;
     }
@@ -144,7 +144,7 @@ void execute(char* process_path, Command command) {
     char* cmd_args[MAX_ARGUMENTS];
     int i = 1;
     cmd_args[0] = process_path;
-    while(*command[i] != '\0') {
+    while (*command[i] != '\0') {
         cmd_args[i] = command[i];
         i++;
     }
@@ -172,7 +172,7 @@ bool get_process_path(char* process_path, char* process) {
     char cp[MAX_PATH_LENGTH];
     int i = 0;
 
-    if (file_is_executable(process)){
+    if (file_is_executable(process)) {
         strncpy(process_path, process, MAX_PATH_LENGTH);
         return TRUE;
     }

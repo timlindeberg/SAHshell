@@ -62,7 +62,7 @@ void execute_commands(Commands commands) {
     Command cmd_one = commands[0];
 
     /* Check for background process  */
-    if(is_background_command(cmd_one)){
+    if (is_background_command(cmd_one)) {
         sah_start_background_process(cmd_one);
         return;
     }
@@ -78,18 +78,18 @@ void execute_commands(Commands commands) {
     }
 }
 
-bool is_background_command(Command cmd){
+bool is_background_command(Command cmd) {
     int i = 0;
     size_t length = 0;
-    while(*cmd[i] != '\0') {
+    while (*cmd[i] != '\0') {
         ++i;
     }
     --i;
     length = strlen(cmd[i]);
 
     /* Check if the last char is an & */
-    if(cmd[i][length-1] == '&') {
-        cmd[i][length-1] = '\0';
+    if (cmd[i][length - 1] == '&') {
+        cmd[i][length - 1] = '\0';
         return TRUE;
     }
     return FALSE;
@@ -113,7 +113,7 @@ void print_prompt() {
 
 char* create_dir_string(char* str) {
     int index = starts_with_homedir(CURRENT_DIR);
-    if(index == -1){
+    if (index == -1) {
         return CURRENT_DIR;
     }
 
@@ -154,7 +154,7 @@ void sigchld_handler(int signo) {
 
 void wait_for_children() {
     int pid = 0, status = 0;
-    while((pid = waitpid(-1, &status, WNOHANG)) > 0){
+    while ((pid = waitpid(-1, &status, WNOHANG)) > 0) {
         fprintf(stderr, "Process with id '%d' exited with status '%d' \n", pid, status);
     }
 }

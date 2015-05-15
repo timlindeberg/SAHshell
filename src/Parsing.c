@@ -10,7 +10,7 @@ void parse_commands(char cmd_entry[MAX_COMMAND_ENTRY], Commands commands) {
      * - cmd_entry = "foo | bar"
      * - cmd_args = ["foo", "bar"]
      */
-    split(cmd_entry, cmd_args, "|");
+    split(cmd_entry, cmd_args, "|", MAX_ARGUMENTS);
 
     /* Loop through each command and parse it */
     while (cmd_args[i] != NULL) {
@@ -36,13 +36,13 @@ void parse_commands(char cmd_entry[MAX_COMMAND_ENTRY], Commands commands) {
         /* Copy all arguments to the commands structure */
         strncpy(commands[i][0], args[0], MAX_COMMAND_ENTRY);
         j = 1;
-        while (j < arg_size) {
+        while(j < arg_size && j + offset < MAX_ARGUMENTS) {
             wordexp_t wordbuf;
 
             /* Expand arguments using wordexp */
             if (!escaped[j] && wordexp(args[j], &wordbuf, 0) == 0) {
                 int k = 0;
-                while (k < wordbuf.we_wordc) {
+                while(k < wordbuf.we_wordc && j + offset + k < MAX_ARGUMENTS){
                     strncpy(commands[i][j + offset + k], wordbuf.we_wordv[k], MAX_COMMAND_ENTRY);
                     k++;
                 }
@@ -97,15 +97,16 @@ void parse_args(char** args, char* cmd_entry, bool escaped[MAX_ARGUMENTS]) {
     args[arg_count] = NULL;
 }
 
-void split(char* string, char** string_array, char* delimiters) {
+void split(char* string, char** string_array, char* delimiters, size_t size) {
     char* token;
+    int i = 0;
     token = strtok(string, delimiters);
-    while (token != NULL) {
-        *string_array = token;
-        string_array++;
+    while (token != NULL && i < size - 1) {
+        *(string_array + i) = token;
         token = strtok(NULL, delimiters);
+        i++;
     }
-    *string_array = NULL;
+    *(string_array + i) = NULL;
 }
 
 void clear_commands(Commands commands) {

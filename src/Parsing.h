@@ -46,7 +46,7 @@ void parse_args(char** args, char* cmd_entry, bool escaped[MAX_ARGUMENTS]);
  * @param delimiters The delimiter characters.
  * @return void
  */
-void split(char* cmd_entry, char** cmd_args, char* delim);
+void split(char* cmd_entry, char** cmd_args, char* delim, size_t size);
 
 /**
  * Sets all entries in commands to null.

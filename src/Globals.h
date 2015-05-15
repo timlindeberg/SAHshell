@@ -14,16 +14,16 @@ typedef int bool;
 #define check(condition, msg) if(condition){ fprintf(stderr, "%s[l:%d]: ", __FILE__, __LINE__); perror(msg); sah_exit(); }
 
 /* System error messages */
-static char* SIGNAL_ERR      = "Failed to register signal handler";
-static char* HOME_ENV_ERR    = "Could not get HOME env";
-static char* PATH_ENV_ERR    = "Could not get PATH env";
-static char* USER_ENV_ERR    = "Could not get USER env";
-static char* WORKING_DIR_ERR = "Could not get working directory";
-static char* FORK_ERR        = "Could not fork process";
-static char* TIME_ERR        = "Could not get current time";
-static char* PIPE_ERR        = "Could not create pipe";
-static char* DUP_ERR         = "Could not duplicate file descriptor";
-static char* CLOSE_ERR       = "Could not close pipe file descriptor";
-static char* WAIT_ERR        = "Error when waiting for child process";
+extern const char* SIGNAL_ERR;
+extern const char* HOME_ENV_ERR;
+extern const char* PATH_ENV_ERR;
+extern const char* USER_ENV_ERR ;
+extern const char* WORKING_DIR_ERR;
+extern const char* FORK_ERR;
+extern const char* TIME_ERR;
+extern const char* PIPE_ERR;
+extern const char* DUP_ERR;
+extern const char* CLOSE_ERR ;
+extern const char* WAIT_ERR;
 
 #endif /* SAHSHELL_GLOBALS_H */

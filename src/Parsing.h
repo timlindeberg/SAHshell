@@ -10,7 +10,7 @@
 
 #define MAX_COMMAND_ENTRY 80
 #define MAX_PATH_LENGTH 4096
-#define MAX_ARGUMENTS 32
+#define MAX_ARGUMENTS 128
 
 /* Type definitions for the structure of commands. */
 typedef char Commands[MAX_ARGUMENTS][MAX_ARGUMENTS][MAX_COMMAND_ENTRY];

@@ -1,7 +1,4 @@
-#include <wordexp.h>
 #include "Parsing.h"
-
-
 
 void parse_commands(char cmd_entry[MAX_COMMAND_ENTRY], Commands commands) {
     char* cmd_args[MAX_ARGUMENTS];
@@ -132,7 +129,7 @@ void clear_commands(Commands commands){
         while (j < MAX_ARGUMENTS) {
             int k = 0;
 
-            while (k < MAX_ARGUMENTS) {
+            while (k < MAX_COMMAND_ENTRY) {
                 commands[i][j][k] = '\0';
                 ++k;
             }

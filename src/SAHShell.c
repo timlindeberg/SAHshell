@@ -4,6 +4,7 @@ int main(int argc, char** argv, char** envp) {
     /* Ignore interactive stop and termination signal */
     check(signal(SIGTSTP, SIG_IGN) == SIG_ERR, SIGNAL_ERR);
     check(signal(SIGTERM, SIG_IGN) == SIG_ERR, SIGNAL_ERR);
+    check(signal(SIGINT, SIG_IGN) == SIG_ERR, SIGNAL_ERR);
 
 #ifdef SIGDET
     /* Listen to when a child process exits */
@@ -118,7 +119,7 @@ char* create_dir_string(char* str) {
         return CURRENT_DIR;
     }
 
-    snprintf(str, MAX_PATH_LENGTH, "~%s", CURRENT_DIR + index);
+    sprintf(str, "~%s", CURRENT_DIR + index);
     return str;
 }
 

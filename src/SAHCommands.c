@@ -179,7 +179,7 @@ bool get_process_path(char* process_path, char* process) {
     strncpy(cp, path_env, MAX_PATH_LENGTH);
     split(cp, paths, ":");
     while (paths[i] != NULL) {
-        snprintf(process_path, MAX_PATH_LENGTH, "%s/%s", paths[i], process);
+        sprintf(process_path, "%s/%s", paths[i], process);
         if (file_is_executable(process_path)) {
             return TRUE;
         }

@@ -3,8 +3,8 @@
 int main(int argc, char** argv, char** envp) {
     /* Signal handling */
     check(signal(SIGTERM, sah_exit) == SIG_ERR, SIGNAL_ERR);
-    check(signal(SIGINT, SIG_IGN) == SIG_ERR, SIGNAL_ERR);
     check(signal(SIGTSTP, SIG_IGN) == SIG_ERR, SIGNAL_ERR);
+    check(signal(SIGINT, SIG_IGN) == SIG_ERR, SIGNAL_ERR);
 
 #ifdef SIGDET
     /* Listen to when a child process exits */
@@ -21,6 +21,7 @@ int main(int argc, char** argv, char** envp) {
 
     while (TRUE) {
         char cmd_entry[MAX_COMMAND_ENTRY]; /* The current command line entry */
+
 
         /* Assign current directory and print shell prompt */
         set_current_dir();

@@ -75,9 +75,14 @@ void sah_start_processes(Commands commands) {
     check(gettimeofday(&before, NULL) == -1, TIME_ERR);
 
     pid1 = fork();
+
     check(pid1 == -1, FORK_ERR);
     if (pid1 == 0) {
         int i = 0;
+
+        /* Clear SIGINT signal */
+        check(signal(SIGINT, SIG_DFL) == SIG_ERR, SIGNAL_ERR);
+
         while (i < count) {
             Command command = commands[i];
             char process_path[MAX_PATH_LENGTH];
@@ -107,14 +112,8 @@ void sah_start_processes(Commands commands) {
         }
     }
 
-    /* Ignore SIGINT */
-    check(signal(SIGINT, SIG_IGN) == SIG_ERR, SIGNAL_ERR);
-
     /* Wait for executed process  */
     check(waitpid(pid1, NULL, 0) == -1 && errno != ECHILD, WAIT_ERR);
-
-    /* Clear SIGINT signal */
-    check(signal(SIGINT, SIG_DFL) == SIG_ERR, SIGNAL_ERR);
 
     check(gettimeofday(&after, NULL) == -1, TIME_ERR);
     print_exec_time(before, after);

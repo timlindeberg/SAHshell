@@ -61,7 +61,10 @@ void sah_start_processes(Commands commands) {
     struct timeval before, after;
 
     while (**commands[count] != '\0') count++;
-
+    if(count == 0){
+        printf("Could not find process \n");
+        return;
+    }
     while (i < count) {
         char process_path[MAX_PATH_LENGTH];
         Command command = commands[i];

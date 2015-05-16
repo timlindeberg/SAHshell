@@ -65,8 +65,8 @@ void sah_start_processes(Commands commands) {
     while (i < count) {
         char process_path[MAX_PATH_LENGTH];
         Command command = commands[i];
-        if (!get_process_path(process_path, command[0])) {
-            printf("Could not found process %s\n", command[0]);
+        if (strlen(command[0]) <= 0 || !get_process_path(process_path, command[0])) {
+            printf("Could not find process %s\n", command[0]);
             return;
         }
         i++;
@@ -128,7 +128,7 @@ void sah_start_background_process(Command command) {
     int pid;
 
     process = command[0];
-    if (!get_process_path(process_path, process)) {
+    if (strlen(process) <= 0 || !get_process_path(process_path, process)) {
         printf("Could not find process %s\n", process);
         return;
     }
@@ -197,11 +197,6 @@ bool get_process_path(char* process_path, char* process) {
 }
 
 bool file_is_executable(char* path) {
-    struct stat sb;
-    stat(path, &sb);
-    if((sb.st_mode & S_IFMT) == S_IFDIR){
-        return FALSE;
-    }
     return access(path, X_OK) == 0 ? TRUE : FALSE;
 }
 

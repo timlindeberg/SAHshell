@@ -1,9 +1,8 @@
-#include <wordexp.h>
 #include "Parsing.h"
 
 void parse_commands(char cmd_entry[MAX_COMMAND_ENTRY], Commands commands) {
     char* cmd_args[MAX_ARGUMENTS];
-    int i = 0;
+    int i;
 
     clear_commands(commands);
 
@@ -14,16 +13,16 @@ void parse_commands(char cmd_entry[MAX_COMMAND_ENTRY], Commands commands) {
     split(cmd_entry, cmd_args, "|", MAX_ARGUMENTS);
 
     /* Loop through each command and parse it */
-    while (cmd_args[i] != NULL) {
+    for(i = 0; cmd_args[i] != NULL; i++) {
         char* args[MAX_ARGUMENTS];
         bool escaped[MAX_ARGUMENTS];
-        int j = 0;
-        int k = 0;
+        int j;
+        int k;
         int offset = 0;
         int arg_size = 0;
 
         /* Initiate escaped array to false. */
-        while (k < MAX_ARGUMENTS) escaped[k++] = FALSE;
+        for(k = 0; k < MAX_ARGUMENTS; k++) escaped[k] = FALSE;
 
         /* Parse argument
          * - cmd_args[i] = "ls -a"
@@ -36,47 +35,51 @@ void parse_commands(char cmd_entry[MAX_COMMAND_ENTRY], Commands commands) {
 
         /* Copy all arguments to the commands structure */
         strncpy(commands[i][0], args[0], MAX_COMMAND_ENTRY);
-        j = 1;
-        while(j < arg_size && j + offset < MAX_ARGUMENTS) {
+        for(j = 1; j < arg_size && j + offset < MAX_ARGUMENTS; j++) {
             wordexp_t wordbuf;
 
             /* Expand arguments using wordexp */
             if (!escaped[j] && wordexp(args[j], &wordbuf, 0) == 0) {
-                int k = 0;
-                while(k < wordbuf.we_wordc && j + offset + k < MAX_ARGUMENTS){
-                    handle_escapes(wordbuf.we_wordv[k]);
+                for(k = 0; k < wordbuf.we_wordc && j + offset + k < MAX_ARGUMENTS; k++){
+                    replace_escape_symbols(wordbuf.we_wordv[k]);
                     strncpy(commands[i][j + offset + k], wordbuf.we_wordv[k], MAX_COMMAND_ENTRY);
-                    k++;
                 }
                 offset += k - 1;
                 wordfree(&wordbuf);
             } else {
                 /* Copy argument as is if it can't be expanded. */
-                handle_escapes(args[j]);
+                replace_escape_symbols(args[j]);
                 strncpy(commands[i][j + offset], args[j], MAX_COMMAND_ENTRY);
             }
-            j++;
         }
-        i++;
     }
 }
 
-void handle_escapes(char* str){
-    int i = 0;
+void replace_escape_symbols(char* str){
+    int i;
     int len = strlen(str);
-    while(str[i] != '\0'){
-        if(str[i] == '\\'){
-            switch(str[i + 1]){
-                case 'a': remove_char(str, i, len--); str[i] = '\a'; break;
-                case 'b': remove_char(str, i, len--); str[i] = '\b'; break;
-                case 'f': remove_char(str, i, len--); str[i] = '\f'; break;
-                case 'n': remove_char(str, i, len--); str[i] = '\n'; break;
-                case 'r': remove_char(str, i, len--); str[i] = '\r'; break;
-                case 't': remove_char(str, i, len--); str[i] = '\t'; break;
-                case 'v': remove_char(str, i, len--); str[i] = '\v'; break;
-            }
+
+    for(i = 0; str[i] != '\0'; i++){
+        char c;
+        if(str[i] == '\\' && (c = get_escaped_char(str, i + 1)) != '\0'){
+            /* Remove \ and replace the char with the escaped version
+             * eg ['\', 'n'] becomes ['\n']. */
+            remove_char(str, i, len--);
+            str[i] = c;
         }
-        i++;
+    }
+}
+
+char get_escaped_char(char* str, int i){
+    switch(str[i]){
+        case 'a': return '\a';
+        case 'b': return '\b';
+        case 'f': return '\f';
+        case 'n': return '\n';
+        case 'r': return '\r';
+        case 't': return '\t';
+        case 'v': return '\v';
+        default:  return '\0';
     }
 }
 
@@ -112,6 +115,9 @@ void parse_args(char** args, char* cmd_entry, bool escaped[MAX_ARGUMENTS]) {
         }
         /* Increment pointer to end of argument */
         while (p[i] != ' ' && p[i] != '\0' && p[i] != '\n') {
+            if(p[i] == '\\' && p[i + 1] == ' '){
+                i++; /* Skip over escaped whitespace */
+            }
             i++;
         }
         arg_count++;
@@ -123,38 +129,26 @@ void split(char* string, char** string_array, char* delimiters, size_t size) {
     char* token;
     int i = 0;
     token = strtok(string, delimiters);
-    while (token != NULL && i < size - 1) {
+    for(i = 0; token != NULL && i < size - 1; i++) {
         *(string_array + i) = token;
         token = strtok(NULL, delimiters);
-        i++;
     }
     *(string_array + i) = NULL;
 }
 
 void clear_commands(Commands commands) {
-    int i = 0;
-
-    while (i < MAX_ARGUMENTS) {
-        int j = 0;
-
-        while (j < MAX_ARGUMENTS) {
-            int k = 0;
-
-            while (k < MAX_COMMAND_ENTRY) {
-                commands[i][j][k] = '\0';
-                ++k;
-            }
-            ++j;
+    int i, j;
+    for(i = 0; i < MAX_ARGUMENTS; i++) {
+        for (j = 0; j < MAX_ARGUMENTS; j++) {
+            commands[i][j][0] = '\0';
         }
-        ++i;
     }
 }
 
 int get_arg_size(char* args[MAX_ARGUMENTS]) {
-    int i = 0;
-    int arg_count = 0;
+    int arg_count;
 
-    while (args[i++] != NULL) arg_count++;
+    for (arg_count = 0; args[arg_count] != NULL; arg_count++);
 
     return arg_count;
 }
@@ -164,13 +158,10 @@ void remove_char(char str[MAX_COMMAND_ENTRY], int index, size_t len) {
 }
 
 void print_commands(Commands commands) {
-    int i = 0;
-    while (**commands[i] != '\0') {
-        int j = 0;
-        while (*commands[i][j] != '\0') {
+    int i, j;
+    for(i = 0; **commands[i] != '\0'; i++) {
+        for (j = 0; *commands[i][j] != '\0'; j++) {
             printf("(%i, %i): %s\n", i, j, commands[i][j]);
-            j++;
         }
-        i++;
     }
 }

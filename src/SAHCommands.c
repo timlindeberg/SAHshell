@@ -9,11 +9,10 @@ void sah_check_env(Commands commands) {
 
     /* Add grep to command */
     if (*commands[0][1] != '\0') {
-        int j = 1;
-        while (*commands[0][j] != '\0') {
+        int j;
+        for(j = 1; *commands[0][j] != '\0'; j++) {
             strncpy(commands[1][j], commands[0][j], MAX_COMMAND_ENTRY);
             *commands[0][j] = '\0';
-            j++;
         }
         strcpy(commands[i++][0], "grep");
     }
@@ -55,24 +54,24 @@ void sah_exit(int status) {
 }
 
 void sah_start_processes(Commands commands) {
-    int count = 0;
+    int count;
     int pid1 = 0;
-    int i = 0;
+    int i;
     struct timeval before, after;
 
-    while (**commands[count] != '\0') count++;
+    for(count = 0; **commands[count] != '\0'; count++);
+
     if(count == 0){
         printf("Could not find process \n");
         return;
     }
-    while (i < count) {
+    for (i = 0; i < count; i++) {
         char process_path[MAX_PATH_LENGTH];
         Command command = commands[i];
         if (strlen(command[0]) <= 0 || !get_process_path(process_path, command[0])) {
             printf("Could not find process %s\n", command[0]);
             return;
         }
-        i++;
     }
 
     check(gettimeofday(&before, NULL) == -1, TIME_ERR);
@@ -83,12 +82,12 @@ void sah_start_processes(Commands commands) {
 
     check(pid1 == -1, FORK_ERR);
     if (pid1 == 0) {
-        int i = 0;
+        int i;
 
         /* Clear SIGINT signal */
         check(signal(SIGINT, SIG_DFL) == SIG_ERR, SIGNAL_ERR);
 
-        while (i < count) {
+        for (i = 0; i < count; i++) {
             Command command = commands[i];
             char process_path[MAX_PATH_LENGTH];
             int stdout_fd[2];
@@ -113,7 +112,6 @@ void sah_start_processes(Commands commands) {
                 /* Use this fork for last process. */
                 execute(process_path, command);
             }
-            i++;
         }
     }
 
@@ -148,11 +146,10 @@ void sah_start_background_process(Command command) {
 
 void execute(char* process_path, Command command) {
     char* cmd_args[MAX_ARGUMENTS];
-    int i = 1;
+    int i;
     cmd_args[0] = process_path;
-    while (*command[i] != '\0') {
+    for (i = 1; *command[i] != '\0'; i++) {
         cmd_args[i] = command[i];
-        i++;
     }
     cmd_args[i] = NULL;
     if (execv(process_path, cmd_args) == -1) {
@@ -188,12 +185,11 @@ bool get_process_path(char* process_path, char* process) {
 
     strncpy(cp, path_env, MAX_PATH_LENGTH);
     split(cp, paths, ":", MAX_ARGUMENTS);
-    while (paths[i] != NULL) {
+    for (i = 0; paths[i] != NULL; i++) {
         sprintf(process_path, "%s/%s", paths[i], process);
         if (file_is_executable(process_path)) {
             return TRUE;
         }
-        i++;
     }
 
     return FALSE;

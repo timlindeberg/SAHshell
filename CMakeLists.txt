@@ -12,4 +12,4 @@ set(SOURCE_FILES
     README.md
     run.sh)
 
-add_executable(SAHshell ${SOURCE_FILES} src/Parsing.h src/Parsing.c src/SAHShell.h src/SAHShell.c src/SAHCommands.h src/SAHCommands.c src/Globals.h)
+add_executable(SAHshell ${SOURCE_FILES} src/Parsing.h src/Parsing.c src/SAHShell.h src/SAHShell.c src/SAHCommands.h src/SAHCommands.c src/Globals.h src/ReadInput.h src/ReadInput.c)

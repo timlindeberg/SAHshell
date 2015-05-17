@@ -8,6 +8,7 @@
 #include <signal.h>
 #include <assert.h>
 
+#include "ReadInput.h"
 #include "Parsing.h"
 #include "SAHCommands.h"
 #include "Globals.h"
@@ -44,7 +45,7 @@ void set_current_dir();
  * Prints a prompt containing the users name and current
  * directory.
  */
-void print_prompt();
+char* get_prompt(char* prompt);
 
 /**
  * Checks whether the the string starts with the home directory.

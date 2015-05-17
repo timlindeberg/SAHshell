@@ -62,8 +62,32 @@ void clear_commands(Commands commands);
  */
 int get_arg_size(char* args[MAX_ARGUMENTS]);
 
-void handle_escapes(char* str);
+/**
+ * Replaces all multichars with their corresponding version,
+ * eg ['\', 'n'] becomes ['\n'].
+ * @param str The string to replace escape symbols in
+ * @return void
+ */
+void replace_escape_symbols(char* str);
 
+/**
+ * Returns the corresponding escpaed character.
+ * @return The corresponding multi char,
+ * 'n' => '\n'
+ * 'r' => '\r'
+ * etc.
+ * If the give char is not a multichar the function returns
+ * '\0'.
+ */
+char get_escaped_char(char* str, int i);
+
+/**
+ * Removes the char at the given index in the given string.
+ * @param str The string to remove the char from
+ * @param idnex The position in the string to remove
+ * @param len The length of the string
+ * @return void
+ */
 void remove_char(char str[MAX_COMMAND_ENTRY], int index, size_t len);
 
 /**

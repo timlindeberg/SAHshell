@@ -20,19 +20,15 @@ int main(int argc, char** argv, char** envp) {
     strncpy(PREVIOUS_DIR, CURRENT_DIR, MAX_PATH_LENGTH);
 
     while (TRUE) {
+        char prompt[MAX_COMMAND_ENTRY];
         char cmd_entry[MAX_COMMAND_ENTRY]; /* The current command line entry */
-
 
         /* Assign current directory and print shell prompt */
         set_current_dir();
-        print_prompt();
+        get_prompt(prompt);
 
         /* Read stdin input */
-        if (fgets(cmd_entry, MAX_COMMAND_ENTRY, stdin) != NULL) {
-            /* Remove trailing newline from stdin input */
-            size_t ln = strlen(cmd_entry) - 1;
-            if (cmd_entry[ln] == '\n') cmd_entry[ln] = '\0';
-
+        if (get_input(prompt, cmd_entry, MAX_COMMAND_ENTRY) != NULL) {
             /* Parse and do commands if any input */
             if (strlen(cmd_entry) > 0) {
                 Commands commands;
@@ -81,9 +77,8 @@ void execute_commands(Commands commands) {
 bool is_background_command(Command cmd) {
     int i = 0;
     size_t length = 0;
-    while (*cmd[i] != '\0') {
-        ++i;
-    }
+    for (i = 0; *cmd[i] != '\0'; ++i);
+
     --i;
     length = strlen(cmd[i]);
 
@@ -99,7 +94,7 @@ void set_current_dir() {
     check(getcwd(CURRENT_DIR, MAX_PATH_LENGTH) == NULL, WORKING_DIR_ERR);
 }
 
-void print_prompt() {
+char* get_prompt(char* buf) {
     char tmp[MAX_PATH_LENGTH];
     char* dir = create_dir_string(tmp);
     char* name;
@@ -108,7 +103,8 @@ void print_prompt() {
     check(name == NULL, USER_ENV_ERR);
 
     /* Uses ANSI colors. */
-    printf("\x1b[34m%s\x1b[0m: \x1b[1m%s\x1b[0m\x1b[32m $ \x1b[0m", name, dir);
+    sprintf(buf, "\x1b[34m%s\x1b[0m: \x1b[1m%s\x1b[0m\x1b[32m $ \x1b[0m", name, dir);
+    return buf;
 }
 
 char* create_dir_string(char* str) {
@@ -144,10 +140,10 @@ void sigchld_handler(int signo) {
     do {
         pid = waitpid(-1, &status, WNOHANG);
         check(pid == -1 && errno != ECHILD, WAIT_ERR);
-        if(pid > 0){
+        if (pid > 0) {
             printf("\nProcess with id '%d' exited with status '%d' \n", pid, status);
         }
-    } while(pid > 0);
+    } while (pid > 0);
 }
 
 #else

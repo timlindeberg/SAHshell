@@ -200,6 +200,11 @@ bool get_process_path(char* process_path, char* process) {
 }
 
 bool file_is_executable(char* path) {
+    DIR* dir;
+    if((dir = opendir(path))){
+        closedir(dir);
+        return FALSE;
+    }
     return access(path, X_OK) == 0 ? TRUE : FALSE;
 }
 

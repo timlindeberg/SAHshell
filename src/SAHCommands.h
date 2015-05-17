@@ -8,6 +8,7 @@
 #include <sys/wait.h>
 #include <sys/time.h>
 #include <sys/errno.h>
+#include <dirent.h>
 
 #include "Parsing.h"
 #include "Globals.h"

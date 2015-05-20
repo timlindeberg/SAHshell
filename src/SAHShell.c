@@ -135,28 +135,23 @@ int starts_with_homedir(char* s) {
 #ifdef SIGDET
 
 void sigchld_handler(int signo) {
-    int pid, status;
     assert(signo == SIGCHLD);
 
     /* Listen to when a child process exits again */
     signal(SIGCHLD, sigchld_handler);
 
+    wait_for_children();
+}
+#endif /* SIGDET */
+
+void wait_for_children() {
+    int pid, status;
     do {
         pid = waitpid(-1, &status, WNOHANG);
         check(pid == -1 && errno != ECHILD, WAIT_ERR);
         if(pid > 0){
-            printf("\nProcess with id '%d' exited with status '%d' \n", pid, status);
+            printf("Process with id '%d' exited with status '%d' \n", pid, status);
         }
     } while(pid > 0);
 }
 
-#else
-
-void wait_for_children() {
-    int pid = 0, status = 0;
-    while ((pid = waitpid(-1, &status, WNOHANG)) > 0) {
-        fprintf(stderr, "Process with id '%d' exited with status '%d' \n", pid, status);
-    }
-}
-
-#endif /* SIGDET */

@@ -85,7 +85,7 @@ int starts_with_homedir(char* s);
  */
 void sigchld_handler(int signo);
 
-#else
+#endif /* SIGDET */
 
 /**
  * Preforms wait on all child process to allow the system to release the
@@ -95,6 +95,5 @@ void sigchld_handler(int signo);
  */
 void wait_for_children();
 
-#endif /* SIGDET */
 
 #endif /* SAHSHELL_SAHSHELL_H */

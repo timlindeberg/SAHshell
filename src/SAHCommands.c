@@ -76,9 +76,9 @@ void sah_start_processes(Commands commands) {
     }
 
     check(gettimeofday(&before, NULL) == -1, TIME_ERR);
-
+#ifdef SIGDET
     check(signal(SIGCHLD, SIG_DFL) == SIG_ERR, SIGNAL_ERR);
-
+#endif
     pid1 = fork();
 
     check(pid1 == -1, FORK_ERR);
@@ -119,8 +119,9 @@ void sah_start_processes(Commands commands) {
 
     /* Wait for executed process  */
     check(waitpid(pid1, NULL, 0) == -1 && errno != ECHILD, WAIT_ERR);
-
+#ifdef SIGDET
     check(signal(SIGCHLD, sigchld_handler) == SIG_ERR, SIGNAL_ERR);
+#endif
     check(gettimeofday(&after, NULL) == -1, TIME_ERR);
     print_exec_time(before, after);
 }
